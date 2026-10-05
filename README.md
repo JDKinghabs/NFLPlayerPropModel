@@ -16,7 +16,7 @@ pip install -r requirements.txt
 python -m props                    # earliest week with games still to play
 python -m props --weeks 5          # a specific week (or several: --weeks 4 5)
 python -m props --refresh          # force a re-download (data is cached for 3h in data/raw/)
-pytest                             # 45 tests
+pytest                             # 51 tests
 ```
 
 Output goes to `output/NFL_Props_<season>_Wk<weeks>.xlsx`. Only games that have **not kicked off** are shown.
@@ -76,6 +76,13 @@ lines are **not** included, so you enter them by hand. An odds feed is the obvio
    The **matchup weight falls with rank**: 0.75 for QBs, 0.60 / 0.30 for RB 1-10 / 11-15, 0.45 / 0 for WR 1-10 / 11-25,
    because in past seasons the defense barely predicted how depth receivers did. Cards say so.
 4. Players listed Out/Doubtful are dropped; Questionable ones stay, flagged.
+5. **Touches outlook** on each card (QB pass attempts, RB carries + catches, WR targets): expected touches next to the season
+   average and last 3. Touches are steadier than yards (the plain average misses them by 26% / 33% / 41% vs ~30% / 52% / 57% for yards).
+   - *QB*: expected attempts are adjusted for how many attempts the opposing defense faces (validated: t = 4.1, out-of-sample error -2.9%).
+   - *RB / WR*: when teammates are likely out, a **workload flag** shows who and how much of the pool they held, plus the historical
+     size of the bump (RB touches +19% over 36 games, WR targets +6% over 241). It is **information only**: it did not improve
+     out-of-sample accuracy, so it is not folded into the expected number or the yards projection.
+   - The forecast is frozen into each saved bet and graded against actual touches (`results.json` carries them) in the Model check.
 
 ### Sheet 2: backups
 
@@ -129,7 +136,7 @@ Single-game yardage is very noisy, so treat Proj as a fair-value anchor, not a p
 | Wider pools (RB 15, WR 25) | tuning unchanged; model beats naive by more | yes |
 | A second method (volume x regressed efficiency) as a cross-check | a near-clone: corr 0.97-0.99 with the production projection, same accuracy, no added information (t 0.9-1.6) | no |
 | Teammates ruled Out as a forward signal for elite players | right direction, not significant (QB t=1.4, RB 1.7 on 38 games, WR 1.0) | no |
-| Forecasting *touches* (attempts / carries+catches / targets): touches are steadier than yards (baseline misses 26% / 33% / 41% of the mean vs ~30% / 52% / 57% for yards) | QB attempts respond to a defense's volume-allowed rating (t=4.1, error -2.9%); teammates out raise RB touches +19% (t=3.6, 36 games) and WR targets +6% (t=2.8) but do not improve out-of-sample accuracy; none of it helps yards | not yet |
+| Forecasting *touches* (attempts / carries+catches / targets): touches are steadier than yards (baseline misses 26% / 33% / 41% of the mean vs ~30% / 52% / 57% for yards) | QB attempts respond to a defense's volume-allowed rating (t=4.1, error -2.9%); teammates out raise RB touches +19% (t=3.6, 36 games) and WR targets +6% (t=2.8) but do not improve out-of-sample accuracy; none of it helps yards | QB: yes (expected attempts). RB/WR: shown as a flag only |
 | Opposing defenders ruled Out as a forward signal | nothing (t <= 0.6) | no |
 | Snap share for who absorbs a starter's volume | RB corr 0.29 -> 0.32, volume error about -3%; WR 0.10 -> 0.13, small | yes (RB 0.5, WR 0.25) |
 
@@ -165,6 +172,7 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
   moves everything.
 - Game script, weather, pace and snap counts aren't used; spread/total are shown for context only.
 - Early-season samples are small (3-4 games); everything is shrunk toward prior information accordingly.
+- The RB/WR workload flag rests on few games (36 RB games with a teammate out) and has not shown out-of-sample gains; treat it as context.
 - Game script only helps QBs in the data. RB and WR lines are not adjusted for it.
 - WR 11-25 are listed because they were asked for, but the defense matchup has shown no predictive value for them.
 - Depth charts come from ESPN via nflverse and can lag roster moves.
@@ -179,7 +187,7 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
 ## Layout
 
 ```
-props/        config.py (all constants) | data.py | slate.py | defense.py | gamescript.py | snaps.py | availability.py
+props/        config.py (all constants) | data.py | slate.py | defense.py | gamescript.py | snaps.py | volume.py | touches.py | availability.py
               elite.py (Sheet 1) | backups.py (Sheet 2) | workbook.py | site.py | results.py | calibration.py (+ calibration.json) | pipeline.py | __main__.py
 .github/      workflows/refresh.yml (scheduled rebuild + Pages deploy)
 research/     backtest_elite.py | backtest_backups.py | calibrate_injuries.py | calibrate_distribution.py | review_bets.py

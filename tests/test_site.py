@@ -9,18 +9,24 @@ def result():
     ko = pd.Timestamp("2026-10-04 13:00", tz="America/New_York")
     elite = pd.DataFrame([dict(player_id="00-1", kickoff=ko, name="A <b>Bold</b> Player", team="AAA", opp_txt="@BBB", kick_txt="Sun 10/4 1p",
                                spr_tot="-3 / 44", inj="Q (28%)", rank=1, games=3, total=900, ypg=300.0, l3=310.0,
-                               opp_rank=2, opp_alw=250.0, vs_lg=0.1, proj=270.0, week=4, gs_ctx=0.05, beta=0.0)])
+                               opp_rank=2, opp_alw=250.0, vs_lg=0.1, proj=270.0, week=4, gs_ctx=0.05, beta=0.0,
+                               t_label="Att", t_exp=34.5, t_base=33.0, t_cur=36.0, t_l3=35.0, t_fvol=1.08, t_vac=0.0, t_flag=False, t_if=None, t_out="")])
     backups = pd.DataFrame([dict(player_id="00-2", kickoff=ko, name="Back Up", team="AAA", opp_txt="BBB", kick_txt="Sun 10/4 1p", spr_tot="",
                                  inj="", role="RB2", starters_out="Starter OUT", p_out=1.0, streak=3, base_vol=5.0,
                                  last_vol=6.0, proj_vol=12.0, ypv=4.2, opp_rank=20, opp_vs_lg=-0.05,
                                  proj_if_out=50.0, proj_exp=50.0, week=4)])
     empty = pd.DataFrame()
-    return Result(2026, pd.DataFrame(), {}, {"QB": elite, "RB": empty, "WR": empty},
+    rb = pd.DataFrame([dict(player_id="00-3", kickoff=ko, name="Runner", team="AAA", opp_txt="BBB", kick_txt="Sun 10/4 1p",
+                            spr_tot="", inj="", rank=3, games=3, total=300, ypg=100.0, l3=95.0, opp_rank=4, opp_alw=110.0,
+                            vs_lg=0.1, proj=80.0, week=4, gs_ctx=0.0, beta=0.6, t_label="Tch", t_exp=20.0, t_base=20.0,
+                            t_cur=21.0, t_l3=22.0, t_fvol=1.05, t_vac=0.69, t_flag=True, t_if=27.4,
+                            t_out="Starter OUT (69% of RB touches)")])
+    return Result(2026, pd.DataFrame(), {}, {"QB": elite, "RB": rb, "WR": empty},
                   {"QB": empty, "RB": backups, "WR": empty},
                   {"generated": pd.Timestamp("2026-10-04 12:00", tz="America/New_York"), "weeks": [4, 5], "games": 2,
                    "data_through_week": 3, "injury_reports": {4: (4, False), 5: (4, True)},
                    "top_n": {"QB": 10, "RB": 15, "WR": 25}, "weak_n": 10, "model": "v2"},
-                  {"season": 2026, "final": ["2026|3|AAA"], "y": {"2026|3|00-1|QB": 250}})
+                  {"season": 2026, "final": ["2026|3|AAA"], "y": {"2026|3|00-1|QB": 250}, "t": {"2026|3|00-1|QB": 31}})
 
 
 def test_render_escapes_html_and_shows_notes():
@@ -53,7 +59,7 @@ def test_cards_carry_a_frozen_snapshot_with_kickoff_for_the_lock():
     from html import unescape
     html = render(result())
     snaps = [json.loads(unescape(m)) for m in re.findall(r'data-snap="([^"]+)"', html)]
-    assert len(snaps) == 2
+    assert len(snaps) == 3
     e = next(x for x in snaps if x["sheet"] == "elite")
     assert e["pid"] == "00-1" and e["kickoff"] == "2026-10-04T17:00:00Z" and e["proj"] == 270.0 and e["season"] == 2026
     assert e["opp_rank"] == 2 and e["inj"] == "Q (28%)"
@@ -75,7 +81,7 @@ def test_write_site_publishes_results_separately(tmp_path):
     import json
     write_site(result(), tmp_path / "s")
     r = json.loads((tmp_path / "s" / "results.json").read_text())
-    assert r["final"] == ["2026|3|AAA"] and r["y"]["2026|3|00-1|QB"] == 250
+    assert r["final"] == ["2026|3|AAA"] and r["y"]["2026|3|00-1|QB"] == 250 and r["t"]["2026|3|00-1|QB"] == 31
     assert "250" not in (tmp_path / "s" / "index.html").read_text().split('id="meta"')[0]    # results never baked into cards
 
 
@@ -91,3 +97,18 @@ def test_new_model_features_are_visible_and_stamped():
     meta = json.loads(re.search(r'id="meta">(.*?)</script>', html, re.S).group(1))
     assert meta["model"] == "v2"
     assert "Model check" in html and "review_bets.py" in html                               # feedback loop is wired into the page
+
+
+def test_touches_outlook_block_and_frozen_fields():
+    import json
+    from html import unescape
+    html = render(result())
+    assert "Touches outlook (pass attempts)" in html and "Touches outlook (touches (carries + catches))" in html
+    assert "The opposing defense faces 8% more pass attempts than average" in html          # QB driver note
+    assert "Workload flag: Starter OUT (69% of RB touches)" in html and "not in the expected number" in html
+    assert "About 27.4 touches if it holds" in html                                              # RB "if the bump holds" figure
+    snaps = [json.loads(unescape(m)) for m in re.findall(r'data-snap="([^"]+)"', html)]
+    rb = next(x for x in snaps if x["cat"] == "RB" and x["sheet"] == "elite")
+    assert rb["t_exp"] == 20.0 and rb["t_flag"] is True and rb["t_if"] == 27.4 and rb["t_label"] == "Tch"
+    qb = next(x for x in snaps if x["cat"] == "QB" and x["sheet"] == "elite")
+    assert qb["t_exp"] == 34.5 and qb["t_fvol"] == 1.08 and qb["t_flag"] is False

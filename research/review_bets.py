@@ -87,6 +87,15 @@ def analyze(bets: list[dict], results: dict) -> dict:
         else:
             out["advice"].append(f"{key[0]}/{key[1]}: bias {mean:+.0%} (95% CI {lo:+.0%} to {hi:+.0%}, n={n}): no change warranted.")
 
+    # touches forecast (attempts / touches / targets) vs actual, for bets whose snapshot carries one
+    tby = defaultdict(list)
+    for b, g in rows:
+        te = (b.get("snap") or {}).get("t_exp")
+        act = results.get("t", {}).get(f'{b["season"]}|{b["week"]}|{b["pid"]}|{b["cat"]}')
+        if te and act is not None and g["s"] in ("win", "loss", "push"):
+            tby[b["cat"]].append(act / te - 1)
+    out["touches"] = {k: {"n": len(v), "bias": float(np.mean(v))} for k, v in tby.items()}
+
     # calibration of the Over probability (elite bets only, pushes excluded)
     cal = [(b["pOver"], g["actual"] > b["line"]) for b, g in settled if b.get("pOver") is not None and g["s"] != "push"]
     for lo_, hi_, label in ((0, .35, "<35%"), (.35, .45, "35-45%"), (.45, .55, "45-55%"), (.55, .65, "55-65%"), (.65, 1.01, "65%+")):
@@ -112,6 +121,8 @@ def print_report(a: dict) -> None:
     print("\nModel vs actual (actual / frozen projection - 1):")
     for (sheet, cat), g in a["groups"].items():
         print(f"  {sheet:7s} {cat}: n={g['n']:3d}  bias {g['bias']:+.1%}  95% CI [{g['lo']:+.1%}, {g['hi']:+.1%}]  avg miss {g['mae']:.0f} yds")
+    for k, t in a.get("touches", {}).items():
+        print(f"\nTouches forecast, {k}: n={t['n']}  actual vs expected {t['bias']:+.1%}")
     if a["calibration"]:
         print("\nWhen the model said X% Over, how often did it go Over?")
         for c in a["calibration"]:
@@ -130,12 +141,12 @@ def load_results(bets: list[dict], path: Path | None) -> dict:
     from props.data import cached, STAT_COLS
     from props.results import build_results
     import pandas as pd
-    final, y, season = [], {}, None
+    final, y, tt, season = [], {}, {}, None
     for s in sorted({b["season"] for b in bets}):
         d = pd.read_csv(cached(f"stats_player/stats_player_week_{s}.csv", True), usecols=lambda c: c in STAT_COLS)
         r = build_results(d[d.season_type == "REG"], s)
-        final += r["final"]; y.update(r["y"]); season = s
-    return {"season": season, "final": final, "y": y}
+        final += r["final"]; y.update(r["y"]); tt.update(r["t"]); season = s
+    return {"season": season, "final": final, "y": y, "t": tt}
 
 
 def main():

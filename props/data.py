@@ -14,7 +14,7 @@ CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 
 STAT_COLS = [
     "player_id", "player_display_name", "position", "team", "opponent_team", "season", "week",
-    "season_type", "attempts", "carries", "targets", "passing_yards", "rushing_yards",
+    "season_type", "attempts", "carries", "targets", "receptions", "passing_yards", "rushing_yards",
     "receiving_yards",
 ]
 

@@ -60,6 +60,13 @@ LEAGUE_TEAM_TOTAL = 22.0       # average points per team per game, 2022-25
 # `tt` is the effect per unit of implied-team-total gap, `home` the home-field effect, `tt_ref` the typical gap.
 GAME_SCRIPT = {"QB": {"level": -0.0416, "tt": 0.2368, "home": 0.0466, "tt_ref": 0.1234}}
 
+# ---- Touches outlook (props/touches.py; evidence in research/experiment_touches.py) ----------------------------
+TOUCH_QB_VOLUME_BETA = 0.8     # [tuned] QB attempts per unit of the opposing defense's volume-allowed gap (slope 0.87, t=4.1)
+TOUCH_FLAG_MIN = 0.05          # flag a workload bump when teammates likely to miss hold at least this share of the pool
+# RB/WR workload effect when teammates are out, 2023-25: `slope` per unit of v/(1-v); `bump` = avg touches vs baseline
+# in those games; `n` = games.  Shown as a flag only: it did not improve out-of-sample accuracy.
+TOUCH_WORKLOAD = {"RB": {"slope": 0.55, "bump": 0.19, "n": 36}, "WR": {"slope": 0.45, "bump": 0.06, "n": 241}}
+
 # ---- Availability -----------------------------------------------------------
 # Same-week designations (final injury report for the game).  [calibrated] on 2023-25 rotation
 # players (avg >= 6 touches/targets/attempts per game): Out and Doubtful essentially never play.

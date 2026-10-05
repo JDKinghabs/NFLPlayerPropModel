@@ -40,7 +40,7 @@ def p_out_table(injuries: pd.DataFrame, roster: pd.DataFrame, week: int,
 
     `stats` (current-season player-weeks) lets a stale report distinguish a Questionable
     player who sat last week from one who played.
-    Columns: gsis_id, p_out, label, stale
+    Columns: gsis_id, p_out, label, stale, source  (source: 'injury' report or 'roster' status such as IR)
     """
     rows = []
     rows_inj, stale, rep_wk = injury_week_for(injuries, week)
@@ -69,12 +69,12 @@ def p_out_table(injuries: pd.DataFrame, roster: pd.DataFrame, week: int,
             p, label = C.P_OUT_PRACTICE_DNP, f"DNP ({C.P_OUT_PRACTICE_DNP:.0%})"
         if p > 0:
             rows.append((r.gsis_id, p, label, stale))
-    inj_df = pd.DataFrame(rows, columns=["gsis_id", "p_out", "label", "stale"])
+    inj_df = pd.DataFrame(rows, columns=["gsis_id", "p_out", "label", "stale"]).assign(source="injury")
 
     # roster-level unavailability (IR / suspended / retired / cut) is certain
     ro = roster[roster.status.isin(C.ROSTER_UNAVAILABLE)]
     ro = ro.assign(p_out=1.0, label=ro.status.map(lambda s: "IR/RES" if s == "RES" else s),
-                   stale=False)[["gsis_id", "p_out", "label", "stale"]]
+                   stale=False, source="roster")[["gsis_id", "p_out", "label", "stale", "source"]]
     out = pd.concat([inj_df, ro], ignore_index=True)
     out = out[out.gsis_id.notna()].sort_values("p_out", ascending=False)
     return out.drop_duplicates("gsis_id").reset_index(drop=True)

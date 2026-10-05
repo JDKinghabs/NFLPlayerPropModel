@@ -10,6 +10,7 @@ import pandas as pd
 
 from . import calibration as CAL
 from . import config as C
+from .volume import TOUCH_LABEL, TOUCH_NAME, TOUCH_WORD
 
 XLSX_NAME = "NFL_Props_latest.xlsx"
 REPO_URL = "https://github.com/JDKinghabs/NFLPlayerPropModel"
@@ -66,6 +67,8 @@ background:var(--warn-bg);color:var(--ink)}
 .trust h3{margin:0 0 6px;font-size:15px}.trust ul{margin:0;padding-left:18px;color:var(--mute);font-size:13px}.trust li{margin:4px 0}
 footer{color:var(--mute);font-size:12px;margin:18px 0 8px}footer a{color:var(--accent)}
 
+.tcap{font-size:11px;color:var(--mute);margin:2px 0 4px;text-transform:uppercase;letter-spacing:.04em}
+.stats.touches div{background:var(--strong-bg)}.tnote{font-size:12px;color:var(--mute);margin:0 0 8px}
 .linebox{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:13px;color:var(--mute)}
 .linebox input{width:104px;font:inherit;font-weight:650;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--warn-bg);color:var(--ink)}
 .pov{font-weight:650;color:var(--mute)}.pov.pos{color:var(--good)}.pov.neg{color:var(--bad)}
@@ -217,13 +220,18 @@ function summarize(rows){
   });
   return st;
 }
-function modelCheck(rows){
+function modelCheck(rows,R){
   var done=rows.filter(function(x){return x.g.actual!==undefined&&x.b.snap&&x.b.snap.proj>0});
   if(done.length<5) return '';
   var cats={}; done.forEach(function(x){var c=cats[x.b.cat]||(cats[x.b.cat]={n:0,s:0}); c.n++; c.s+=x.g.actual/x.b.snap.proj-1});
   var h='<div class="mcheck"><h3>Model check</h3><p class="small">Is the model running high or low on the players you actually bet on? (actual yards vs the frozen projection)</p><table><tr><th>Position</th><th>Bets</th><th>Actual vs projection</th></tr>';
   Object.keys(cats).forEach(function(k){var c=cats[k],m=c.s/c.n;h+='<tr><td>'+CATNAME[k]+'</td><td>'+c.n+'</td><td>'+(m>0?'+':'')+(m*100).toFixed(0)+'%</td></tr>'});
   h+='</table>';
+  var tc={}; rows.forEach(function(x){var b=x.b,sn=b.snap||{}; if(!(sn.t_exp>0)||!R||!R.t||x.g.s==='pending'||x.g.s==='void') return;
+    var a=R.t[b.season+'|'+b.week+'|'+b.pid+'|'+b.cat]; if(a===undefined) return; var c=tc[b.cat]||(tc[b.cat]={n:0,s:0}); c.n++; c.s+=a/sn.t_exp-1});
+  var tk=Object.keys(tc);
+  if(tk.length){h+='<p class="small">Touches (attempts / touches / targets) vs the forecast:</p><table><tr><th>Position</th><th>Bets</th><th>Actual vs expected touches</th></tr>';
+    tk.forEach(function(k){var c=tc[k],m=c.s/c.n;h+='<tr><td>'+CATNAME[k]+'</td><td>'+c.n+'</td><td>'+(m>0?'+':'')+(m*100).toFixed(0)+'%</td></tr>'});h+='</table>'}
   var cal=done.filter(function(x){return x.b.pOver!=null&&x.g.s!=='push'});
   if(cal.length>=10){
     var B=[[0,.35,'under 35%'],[.35,.45,'35-45%'],[.45,.55,'45-55%'],[.55,.65,'55-65%'],[.65,1.01,'65%+']];
@@ -252,7 +260,7 @@ function renderBets(){
     if(ag) h+=tile('Went against lean',st.aw+'-'+st.al);
     h+='</dl>';
     if(settled<30) h+='<p class="small" style="color:var(--mute);font-size:12px">'+settled+' settled bets so far. Anything under about 100 is mostly luck, so treat these numbers as a diary, not a verdict.</p>';
-    sum.innerHTML=bets.length?h+modelCheck(rows):'';
+    sum.innerHTML=bets.length?h+modelCheck(rows,R):'';
     if(!bets.length){box.innerHTML='<div class="empty">No bets logged yet. On the other tabs, enter a book line on any card, open "Log a bet", pick a side and save. Bets lock at kickoff.</div>';updateCount();return}
     box.innerHTML=rows.map(function(x){
       var b=x.b,g=x.g,sn=b.snap||{}, locked=Date.now()>=Date.parse(b.kickoff);
@@ -349,6 +357,38 @@ def _iso(ts) -> str:
     return pd.Timestamp(ts).tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _r(x, nd):
+    """round() that tolerates missing/NaN."""
+    return None if x is None or pd.isna(x) else round(float(x), nd)
+
+
+def _touch_block(snap: dict, cat) -> str:
+    """Touches outlook: expected attempts / touches / targets, plus the defense or workload driver."""
+    if snap.get("t_exp") is None:
+        return ""
+    lab = TOUCH_LABEL[cat.key]
+    fvol, flag = snap.get("t_fvol"), snap.get("t_flag")
+    if cat.key == "QB":
+        fourth = ("Opp. faces", f"{(fvol - 1):+.0%} att") if fvol is not None else ("Opp. faces", "-")
+    else:
+        fourth = ("Teammates out", f"{snap['t_vac']:.0%} of pool") if flag else ("Teammates out", "none")
+    note = ""
+    if cat.key == "QB" and fvol is not None and abs(fvol - 1) >= 0.03:
+        word = "more" if fvol > 1 else "fewer"
+        note = (f"The opposing defense faces {abs(fvol - 1):.0%} {word} pass attempts than average. In past seasons QB attempts "
+                f"rose and fell with that (included in the expectation).")
+    elif flag:
+        w = C.TOUCH_WORKLOAD[cat.key]
+        extra = f" About {snap['t_if']:.1f} {TOUCH_WORD[cat.key]} if it holds." if snap.get("t_if") else ""
+        note = (f"Workload flag: {snap['t_out']}. In {w['n']} similar games (2023-25) {TOUCH_WORD[cat.key]} ran about {w['bump']:+.0%} "
+                f"vs baseline.{extra} Shown for information only; it is not in the expected number.")
+    return (f'<div class="tcap">Touches outlook ({TOUCH_NAME[cat.key]})</div>'
+            f'<dl class="stats touches"><div><dt>Expected</dt><dd>{snap["t_exp"]:.1f}</dd></div>'
+            f'<div><dt>Season avg</dt><dd>{_n(snap["t_cur"], 1)}</dd></div><div><dt>Last 3</dt><dd>{_n(snap["t_l3"], 1)}</dd></div>'
+            f'<div><dt>{fourth[0]}</dt><dd>{escape(fourth[1])}</dd></div></dl>'
+            + (f'<p class="tnote">{escape(note)}</p>' if note else ""))
+
+
 def _snap_attr(d: dict) -> str:
     return escape(json.dumps({k: _py(v) for k, v in d.items()}, separators=(",", ":")), quote=True)
 
@@ -374,7 +414,10 @@ def _elite_card(r, cat, ctx) -> str:
                 opp_rank=int(r["opp_rank"]), opp_vs_lg=round(float(r["vs_lg"]), 4), inj=r["inj"], rank=int(r["rank"]),
                 total=r["total"], ypg=round(float(r["ypg"]), 1), l3=round(float(r["l3"]), 1), games=int(r["games"]),
                 spr_tot=r["spr_tot"], model=C.MODEL_VERSION, gs_ctx=round(float(r.get("gs_ctx", 0) or 0), 4),
-                beta=round(float(r.get("beta", C.MATCHUP_BETA)), 2))
+                beta=round(float(r.get("beta", C.MATCHUP_BETA)), 2), t_label=TOUCH_LABEL[cat.key],
+                t_exp=_r(r.get("t_exp"), 2), t_base=_r(r.get("t_base"), 2), t_cur=_r(r.get("t_cur"), 2), t_l3=_r(r.get("t_l3"), 2),
+                t_fvol=_r(r.get("t_fvol"), 3), t_vac=_r(r.get("t_vac"), 3), t_flag=bool(r.get("t_flag", False)),
+                t_if=_r(r.get("t_if"), 2), t_out=r.get("t_out", "") or "")
     return (
         f'<article class="card" data-snap="{_snap_attr(snap)}">'
         f'<div class="top"><div><span class="name">{escape(r["name"])}</span><span class="tm">{escape(r["team"])}</span></div>'
@@ -385,7 +428,7 @@ def _elite_card(r, cat, ctx) -> str:
         f'<dl class="stats"><div><dt>Season</dt><dd>{_n(r["total"])} (#{int(r["rank"])})</dd></div>'
         f'<div><dt>Per game</dt><dd>{_n(r["ypg"], 1)}</dd></div><div><dt>Last 3</dt><dd>{_n(r["l3"], 1)}</dd></div>'
         f'<div><dt>Games</dt><dd>{int(r["games"])}</dd></div></dl>'
-        f'{LINE_BOX}{LOG_FORM}</article>')
+        f'{_touch_block(snap, cat)}{LINE_BOX}{LOG_FORM}</article>')
 
 
 def _backup_card(r, cat, ctx) -> str:

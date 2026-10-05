@@ -8,6 +8,7 @@ from .config import Category
 from .defense import matchup_beta, shrink
 from .gamescript import context_effect, multiplier
 from .slate import fmt_kick, fmt_opp, fmt_spread_total
+from .touches import add_outlook
 
 
 def season_table(stats: pd.DataFrame, cat: Category) -> pd.DataFrame:
@@ -71,6 +72,7 @@ def elite_table(cat: Category, stats, prev_stats, ratings: pd.DataFrame, slate: 
     m["inj"], m["p_out"] = inj_label, p_out
 
     m = m[(m.opp_rank <= weak_n) & (m.p_out < 0.99) & m.proj.notna()].copy()      # never list a card with no projection
+    m = add_outlook(m, cat, stats, prev_stats, ratings, pout_by_week)
     m["opp_txt"] = m.apply(fmt_opp, axis=1)
     m["kick_txt"] = m.kickoff.map(fmt_kick)
     m["spr_tot"] = [fmt_spread_total(s, o) for s, o in zip(m.spread, m.ou)]

@@ -11,6 +11,7 @@ from openpyxl.utils import get_column_letter
 
 from . import config as C
 from .site import pool_text
+from .volume import TOUCH_LABEL
 
 FONT = "Calibri"
 BLOCK_FILL = {"QB": "1F4E78", "RB": "375623", "WR": "7F3F00"}      # dark header bands
@@ -21,11 +22,13 @@ HEADER_ROW, FIRST_ROW = 6, 7
 
 
 def _elite_cols(cat):
+    lab = TOUCH_LABEL[cat.key]
     return [
         ("Player", "name", 20, None), ("Tm", "team", 5, None), ("Opp", "opp_txt", 6, None),
         ("Kickoff", "kick_txt", 15, None), ("Spr / Tot", "spr_tot", 12, None),
         ("Inj", "inj", 13, None), ("Rk", "rank", 4, "0"), ("G", "games", 4, "0"),
         ("Szn Yds", "total", 8, "#,##0"), ("YPG", "ypg", 7, "0.0"), ("L3 Avg", "l3", 7, "0.0"),
+        (f"Exp {lab}", "t_exp", 7, "0.0"), (f"Avg {lab}", "t_cur", 7, "0.0"),
         ("Opp Rk", "opp_rank", 7, "0"), ("Opp Alw/G", "opp_alw", 9, "0.0"),
         ("vs Lg", "vs_lg", 7, '+0%;-0%;0%'), ("Proj", "proj", 7, "0"),
     ]
