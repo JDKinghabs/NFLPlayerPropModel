@@ -11,6 +11,7 @@ from .backups import backup_table
 from .data import current_season, load_all
 from .defense import defense_ratings
 from .elite import elite_table
+from .results import build_results
 from .slate import ET, select_slate
 
 
@@ -22,6 +23,7 @@ class Result:
     elite: dict
     backups: dict
     meta: dict = field(default_factory=dict)
+    results: dict = field(default_factory=dict)
 
 
 def build(season: int | None = None, weeks: list[int] | None = None, refresh: bool = False,
@@ -61,4 +63,4 @@ def build(season: int | None = None, weeks: list[int] | None = None, refresh: bo
         "injury_reports": inj_notes,
         "top_n": top_n, "weak_n": weak_n,
     }
-    return Result(season, slate, ratings, elite, backups, meta)
+    return Result(season, slate, ratings, elite, backups, meta, build_results(d["stats"], season))

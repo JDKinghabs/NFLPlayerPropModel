@@ -1,12 +1,14 @@
 """Static website: one self-contained index.html (+ the xlsx for download)."""
 from __future__ import annotations
 
+import json
 import shutil
 from html import escape
 from pathlib import Path
 
 import pandas as pd
 
+from . import calibration as CAL
 from . import config as C
 
 XLSX_NAME = "NFL_Props_latest.xlsx"
@@ -63,26 +65,215 @@ background:var(--warn-bg);color:var(--ink)}
 .trust{margin:28px 0 0;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
 .trust h3{margin:0 0 6px;font-size:15px}.trust ul{margin:0;padding-left:18px;color:var(--mute);font-size:13px}.trust li{margin:4px 0}
 footer{color:var(--mute);font-size:12px;margin:18px 0 8px}footer a{color:var(--accent)}
+
+.linebox{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:13px;color:var(--mute)}
+.linebox input{width:104px;font:inherit;font-weight:650;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--warn-bg);color:var(--ink)}
+.pov{font-weight:650;color:var(--mute)}.pov.pos{color:var(--good)}.pov.neg{color:var(--bad)}
+details.logbox{margin-top:8px;border-top:1px solid var(--line);padding-top:6px}
+details.logbox summary{cursor:pointer;font-size:13px;font-weight:650;color:var(--accent);padding:4px 0}
+.logrow{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:6px}
+.logrow label{display:flex;flex-direction:column;font-size:11px;color:var(--mute);gap:2px}
+.logrow input{width:74px;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.seg{display:flex}.seg button{font:inherit;font-weight:650;padding:7px 12px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer}
+.seg button:first-child{border-radius:8px 0 0 8px}.seg button:last-child{border-radius:0 8px 8px 0;border-left:0}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+.btn,.logbtn,.btools button{font:inherit;font-weight:650;padding:7px 12px;border-radius:8px;border:1px solid var(--accent);background:var(--card);color:var(--accent);cursor:pointer}
+.logbtn{background:var(--accent);color:var(--bg)}
+.logmsg{font-size:12px;margin-top:6px;color:var(--mute);min-height:1em}
+.sum{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:0 0 12px}
+.sum div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.sum dt{font-size:11px;color:var(--mute)}.sum dd{margin:0;font-weight:700;font-size:17px}
+.sum .pos{color:var(--good)}.sum .neg{color:var(--bad)}
+.bet{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px;display:grid;gap:3px}
+.bet .row1{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:650}
+.badge{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--bg);border:1px solid var(--line);text-transform:uppercase}
+.badge.win{background:var(--good-bg);color:var(--good);border-color:transparent}.badge.loss{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+.badge.void,.badge.push{background:var(--warn-bg);border-color:transparent}
+.bet .small{font-size:12px;color:var(--mute)}
+.btools{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}
+.warnbox{background:var(--bad-bg);color:var(--bad);border-radius:8px;padding:8px 12px;font-size:13px;margin:0 0 12px}
 [hidden]{display:none!important}
 """
 
-JS = """
+JS = r"""
 (function(){
-  var tabs=document.querySelectorAll('.tab'), panels=document.querySelectorAll('.panel');
-  function show(id){tabs.forEach(function(t){t.setAttribute('aria-selected',t.dataset.p===id)});
-    panels.forEach(function(p){p.hidden=p.id!==id});try{history.replaceState(null,'','#'+id)}catch(e){}}
-  tabs.forEach(function(t){t.addEventListener('click',function(){show(t.dataset.p)})});
-  var h=(location.hash||'').slice(1);show(document.getElementById(h)&&h.indexOf('p')===0?h:'p1');
-  function store(k,v){try{v===''?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}
-  function load(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
-  document.querySelectorAll('input[data-proj]').forEach(function(inp){
-    var out=inp.parentNode.querySelector('.edge'), proj=parseFloat(inp.dataset.proj), key='line:'+inp.dataset.key;
-    function upd(){var v=parseFloat(inp.value);if(isNaN(v)){out.textContent='';out.className='edge';return}
-      var e=proj-v;out.textContent=(e>0?'+':'')+e.toFixed(1)+(e>0?' model above line':' model below line');
-      out.className='edge '+(e>0?'pos':'neg')}
-    inp.value=load(key);upd();
-    inp.addEventListener('input',function(){store(key,inp.value);upd()});
+'use strict';
+var $=function(s,r){return (r||document).querySelector(s)};
+var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
+var META=JSON.parse($('#meta').textContent), CAL=null;
+try{CAL=JSON.parse($('#calib').textContent)}catch(e){}
+var KEY='nflprops.bets.v1', LEAN_HI=0.55, LEAN_LO=0.45, memBets=[], storageOK=true;
+var CATNAME={QB:'QB passing',RB:'RB rushing',WR:'WR receiving'};
+
+function readBets(){try{var v=localStorage.getItem(KEY);return v?JSON.parse(v):[]}catch(e){storageOK=false;return memBets}}
+function writeBets(a){memBets=a;try{localStorage.setItem(KEY,JSON.stringify(a))}catch(e){storageOK=false}}
+function lget(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
+function lset(k,v){try{v===''?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function fmtTime(iso){var d=new Date(iso);return isNaN(d)?'':d.toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}
+function fmtU(x){return (x>0?'+':'')+x.toFixed(2)+'u'}
+
+/* ---- probability of going Over (mirror of props/calibration.py) ---- */
+function cdf(p,r,x){
+  var n=r.length;
+  if(x<=r[0]) return r[0]>0 ? p[0]*x/r[0] : p[0];
+  if(x>=r[n-1]) return p[n-1]+(1-p[n-1])*Math.min(1,(x-r[n-1])/r[n-1]);
+  for(var i=0;i<n-1;i++){ if(r[i]<=x && x<r[i+1]) return p[i]+(p[i+1]-p[i])*(x-r[i])/(r[i+1]-r[i]); }
+  return p[n-1];
+}
+function pOver(sheet,cat,proj,line){
+  if(sheet!=='elite'||!CAL||!CAL.elite||!CAL.elite[cat]||!(proj>0)||line==null) return null;
+  var q=CAL.elite[cat]; return Math.min(0.98,Math.max(0.02,1-cdf(q.p,q.r,line/proj)));
+}
+function leanOf(p){return p==null?null:(p>=LEAN_HI?'Over':(p<=LEAN_LO?'Under':'Pass'))}
+function rangeTxt(snap){var q=CAL&&CAL.backup&&CAL.backup[snap.cat]; if(!q) return ''; return Math.round(q.r[0]*snap.proj)+' to '+Math.round(q.r[q.r.length-1]*snap.proj)}
+window.__props={pOver:pOver,cdf:cdf,leanOf:leanOf};
+
+/* ---- tabs ---- */
+var tabs=$$('.tab'), panels=$$('.panel'), resPromise=null, RES=undefined;
+function show(id){
+  tabs.forEach(function(t){t.setAttribute('aria-selected',t.getAttribute('data-p')===id)});
+  panels.forEach(function(p){p.hidden=p.id!==id});
+  try{history.replaceState(null,'','#'+id)}catch(e){}
+  if(id==='p3') renderBets();
+}
+tabs.forEach(function(t){t.addEventListener('click',function(){show(t.getAttribute('data-p'))})});
+
+/* ---- cards: line -> lean, and the bet logger ---- */
+$$('article.card').forEach(function(card){
+  var snap=JSON.parse(card.getAttribute('data-snap')), inp=$('.lineinp',card), pov=$('.pov',card), msg=$('.logmsg',card);
+  var sk='line:'+[snap.sheet,snap.cat,snap.pid,snap.week].join('|'), side=null;
+  function line(){var v=parseFloat(inp.value);return isNaN(v)?null:v}
+  function upd(){
+    if(snap.sheet==='backup'){
+      pov.textContent='No lean for backups: past results were too inconsistent. 80% of past cases landed between '+rangeTxt(snap)+' yds.';
+      return;
+    }
+    var L=line(), p=pOver(snap.sheet,snap.cat,snap.proj,L), ln=leanOf(p);
+    if(p==null){pov.textContent='';pov.className='pov';return}
+    pov.textContent='Model: '+Math.round(p*100)+'% Over / '+Math.round((1-p)*100)+'% Under · lean '+ln;
+    pov.className='pov '+(ln==='Over'?'pos':ln==='Under'?'neg':'');
+  }
+  inp.value=lget(sk); upd();
+  inp.addEventListener('input',function(){lset(sk,inp.value);upd()});
+  $$('.seg button',card).forEach(function(b){b.addEventListener('click',function(){
+    side=b.getAttribute('data-side');
+    $$('.seg button',card).forEach(function(o){o.setAttribute('aria-pressed',o===b)});
+  })});
+  $('.logbtn',card).addEventListener('click',function(){
+    var L=line(), odds=parseFloat($('.odds',card).value), stake=parseFloat($('.stake',card).value);
+    if(L==null) return void(msg.textContent='Enter the book line first.');
+    if(!side) return void(msg.textContent='Pick Over or Under.');
+    if(isNaN(odds)||Math.abs(odds)<100) return void(msg.textContent='Odds should look like -110 or +120.');
+    if(!(stake>0)) return void(msg.textContent='Units must be more than 0.');
+    if(Date.now()>=Date.parse(snap.kickoff)) return void(msg.textContent='This game has started. Bets lock at kickoff.');
+    var bets=readBets(), dup=bets.some(function(b){return b.pid===snap.pid&&b.week===snap.week&&b.cat===snap.cat&&b.season===snap.season&&b.side===side&&b.line===L});
+    if(dup) return void(msg.textContent='You already logged this exact bet.');
+    var p=pOver(snap.sheet,snap.cat,snap.proj,L);
+    bets.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,7), enteredAt:new Date().toISOString(), builtAt:META.built,
+      season:snap.season, week:snap.week, team:snap.team, pid:snap.pid, name:snap.name, cat:snap.cat, sheet:snap.sheet, kickoff:snap.kickoff,
+      side:side, line:L, odds:odds, stake:stake, pOver:p, lean:leanOf(p), snap:snap});
+    writeBets(bets); updateCount();
+    msg.textContent=storageOK?'Saved. Open the "My bets" tab to see it. Snapshot frozen at '+fmtTime(new Date().toISOString())+'.':'Could not save: your browser is blocking storage.';
   });
+});
+
+/* ---- results + grading (results never touch a saved snapshot) ---- */
+function loadResults(){
+  if(resPromise) return resPromise;
+  resPromise=fetch('results.json',{cache:'no-cache'}).then(function(r){if(!r.ok) throw new Error(r.status);return r.json()})
+    .then(function(j){j._fin={};j.final.forEach(function(k){j._fin[k]=1});RES=j;return j}).catch(function(){RES=null;return null});
+  return resPromise;
+}
+function toWin(odds,stake){return stake*(odds>0?odds/100:100/Math.abs(odds))}
+function grade(b,R){
+  if(!R) return {s:'pending',note:'Results file unavailable here.'};
+  if(R.season!==b.season||!R._fin[b.season+'|'+b.week+'|'+b.team]) return {s:'pending'};
+  var a=R.y[b.season+'|'+b.week+'|'+b.pid+'|'+b.cat];
+  if(a===undefined) return {s:'void',profit:0};
+  if(a===b.line) return {s:'push',actual:a,profit:0};
+  var won=(b.side==='Over')===(a>b.line);
+  return {s:won?'win':'loss',actual:a,profit:won?toWin(b.odds,b.stake):-b.stake};
+}
+window.__props.grade=grade; window.__props.readBets=readBets;
+
+function summarize(rows){
+  var st={w:0,l:0,p:0,v:0,pend:0,profit:0,staked:0,err:0,abs:0,n:0,fw:0,fl:0,aw:0,al:0,byCat:{}};
+  rows.forEach(function(x){
+    var g=x.g, b=x.b;
+    if(g.s==='pending'){st.pend++;return}
+    if(g.s==='void'){st.v++;return}
+    if(g.s==='win')st.w++; else if(g.s==='loss')st.l++; else st.p++;
+    st.profit+=g.profit; if(g.s!=='push') st.staked+=b.stake;
+    var c=st.byCat[b.cat]||(st.byCat[b.cat]={w:0,l:0,profit:0,err:0,n:0}); 
+    if(g.s==='win')c.w++; if(g.s==='loss')c.l++; c.profit+=g.profit;
+    if(b.snap&&b.snap.proj>0){var e=g.actual-b.snap.proj; st.err+=e; st.abs+=Math.abs(e); st.n++; c.err+=e; c.n++}
+    if(b.lean&&b.lean!=='Pass'&&g.s!=='push'){
+      var followed=b.side===b.lean;
+      if(followed){g.s==='win'?st.fw++:st.fl++} else {g.s==='win'?st.aw++:st.al++}
+    }
+  });
+  return st;
+}
+function tile(label,val,cls){return '<div><dt>'+label+'</dt><dd class="'+(cls||'')+'">'+val+'</dd></div>'}
+function renderBets(){
+  var box=$('#blist'), sum=$('#bsum');
+  loadResults().then(function(R){
+    var bets=readBets().slice().sort(function(a,b){return a.enteredAt<b.enteredAt?1:-1});
+    $('#bwarn').hidden=storageOK;
+    var rows=bets.map(function(b){return {b:b,g:grade(b,R)}});
+    var st=summarize(rows), settled=st.w+st.l+st.p;
+    var roi=st.staked>0?st.profit/st.staked*100:0;
+    var h='<dl class="sum">'+tile('Record (W-L-P)',st.w+'-'+st.l+'-'+st.p)+tile('Units',fmtU(st.profit),st.profit>0?'pos':st.profit<0?'neg':'')+
+      tile('ROI',settled?roi.toFixed(1)+'%':'-',roi>0?'pos':roi<0?'neg':'')+tile('Pending / void',st.pend+' / '+st.v);
+    if(st.n) h+=tile('Model bias',(st.err/st.n>0?'+':'')+(st.err/st.n).toFixed(0)+' yds')+tile('Model avg miss',(st.abs/st.n).toFixed(0)+' yds');
+    var fo=st.fw+st.fl, ag=st.aw+st.al;
+    if(fo) h+=tile('Followed lean',st.fw+'-'+st.fl);
+    if(ag) h+=tile('Went against lean',st.aw+'-'+st.al);
+    h+='</dl>';
+    if(settled<30) h+='<p class="small" style="color:var(--mute);font-size:12px">'+settled+' settled bets so far. Anything under about 100 is mostly luck, so treat these numbers as a diary, not a verdict.</p>';
+    sum.innerHTML=bets.length?h:'';
+    if(!bets.length){box.innerHTML='<div class="empty">No bets logged yet. On the other tabs, enter a book line on any card, open "Log a bet", pick a side and save. Bets lock at kickoff.</div>';updateCount();return}
+    box.innerHTML=rows.map(function(x){
+      var b=x.b,g=x.g,sn=b.snap||{}, locked=Date.now()>=Date.parse(b.kickoff);
+      var res=g.s==='pending'?(g.note||'Waiting for results (nflverse posts stats after the games, usually by Tuesday).'):
+        g.s==='void'?'No stat line recorded for this player in the final data: treated as void (check your book if he was active).':
+        g.actual+' yds vs line '+b.line+' → '+fmtU(g.profit);
+      var model=(sn.proj!=null?'proj '+Math.round(sn.proj):'')+(b.pOver!=null?' · P(over) '+Math.round(b.pOver*100)+'% · lean '+b.lean:' · no lean')+
+        (sn.opp_rank?' · opp D #'+sn.opp_rank:'')+(sn.inj?' · '+esc(sn.inj):'')+(sn.starters_out?' · out: '+esc(sn.starters_out):'');
+      return '<article class="bet"><div class="row1"><span class="badge '+g.s+'">'+g.s+'</span><span>'+esc(b.name)+' ('+esc(b.team)+')</span>'+
+        '<span class="small">'+CATNAME[b.cat]+' · wk '+b.week+'</span></div>'+
+        '<div>'+esc(b.side)+' '+b.line+' @ '+(b.odds>0?'+':'')+b.odds+' · '+b.stake+'u</div>'+
+        '<div class="small">Model when you logged it: '+model+'</div>'+
+        '<div class="small">'+res+'</div>'+
+        '<div class="small">Logged '+fmtTime(b.enteredAt)+' from data built '+fmtTime(b.builtAt)+'; kickoff '+fmtTime(b.kickoff)+
+        (locked?' (locked)':'')+'</div>'+
+        (locked?'':'<div><button type="button" class="del" data-id="'+esc(b.id)+'">Delete</button></div>')+'</article>';
+    }).join('');
+    $$('.del',box).forEach(function(btn){btn.addEventListener('click',function(){
+      if(btn.getAttribute('data-arm')!=='1'){btn.setAttribute('data-arm','1');btn.textContent='Tap again to delete';return}
+      writeBets(readBets().filter(function(b){return b.id!==btn.getAttribute('data-id')}));renderBets();
+    })});
+    updateCount();
+  });
+}
+function updateCount(){var n=readBets().length;$('#bcount').textContent=n?' ('+n+')':''}
+
+$('#bexp').addEventListener('click',function(){
+  var blob=new Blob([JSON.stringify(readBets(),null,1)],{type:'application/json'}), a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='nfl-prop-bets.json'; document.body.appendChild(a); a.click(); a.remove();
+});
+$('#bimp').addEventListener('change',function(ev){
+  var f=ev.target.files[0]; if(!f) return;
+  var rd=new FileReader(); rd.onload=function(){
+    try{var inc=JSON.parse(rd.result), cur=readBets(), have={}; cur.forEach(function(b){have[b.id]=1});
+      inc.forEach(function(b){if(b&&b.id&&b.pid&&b.kickoff&&!have[b.id]) cur.push(b)}); writeBets(cur); renderBets();
+    }catch(e){alert('That file is not a bet export from this site.')}
+  }; rd.readAsText(f); ev.target.value='';
+});
+
+var h=(location.hash||'').slice(1);
+updateCount(); show(document.getElementById(h)&&/^p[123]$/.test(h)?h:'p1');
 })();
 """
 
@@ -112,15 +303,48 @@ def _inj_chip(label) -> str:
     return f'<span class="chip {cls}">{escape(label)}</span>'
 
 
-def _line_box(proj, key) -> str:
-    return (f'<label class="line">Book line <input type="text" inputmode="decimal" placeholder="enter line" '
-            f'data-proj="{proj:.2f}" data-key="{escape(key)}" aria-label="Sportsbook line"> <span class="edge"></span></label>')
+def _py(x):
+    """JSON-safe plain Python value (numpy scalars, NaN -> None)."""
+    if x is None or (isinstance(x, float) and pd.isna(x)):
+        return None
+    if hasattr(x, "item"):
+        x = x.item()
+    if isinstance(x, float) and pd.isna(x):
+        return None
+    return x
 
 
-def _elite_card(r, cat) -> str:
-    key = f"e|{cat.key}|{r['name']}|{r['week']}"
+def _iso(ts) -> str:
+    return pd.Timestamp(ts).tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _snap_attr(d: dict) -> str:
+    return escape(json.dumps({k: _py(v) for k, v in d.items()}, separators=(",", ":")), quote=True)
+
+
+LOG_FORM = (
+    '<details class="logbox"><summary>Log a bet</summary>'
+    '<div class="logrow"><div class="seg" role="group" aria-label="Side">'
+    '<button type="button" data-side="Over" aria-pressed="false">Over</button>'
+    '<button type="button" data-side="Under" aria-pressed="false">Under</button></div>'
+    '<label>Odds<input class="odds" type="text" inputmode="numeric" value="-110"></label>'
+    '<label>Units<input class="stake" type="text" inputmode="decimal" value="1"></label>'
+    '<button type="button" class="logbtn">Save bet</button></div>'
+    '<div class="logmsg" aria-live="polite"></div></details>')
+
+LINE_BOX = ('<div class="linebox"><label class="line">Book line <input class="lineinp" type="text" '
+            'inputmode="decimal" placeholder="enter line" aria-label="Sportsbook line"></label>'
+            '<span class="pov"></span></div>')
+
+
+def _elite_card(r, cat, ctx) -> str:
+    snap = dict(sheet="elite", cat=cat.key, pid=r["player_id"], name=r["name"], team=r["team"], opp=r["opp_txt"],
+                week=int(r["week"]), season=ctx["season"], kickoff=_iso(r["kickoff"]), proj=round(float(r["proj"]), 2),
+                opp_rank=int(r["opp_rank"]), opp_vs_lg=round(float(r["vs_lg"]), 4), inj=r["inj"], rank=int(r["rank"]),
+                total=r["total"], ypg=round(float(r["ypg"]), 1), l3=round(float(r["l3"]), 1), games=int(r["games"]),
+                spr_tot=r["spr_tot"])
     return (
-        '<article class="card">'
+        f'<article class="card" data-snap="{_snap_attr(snap)}">'
         f'<div class="top"><div><span class="name">{escape(r["name"])}</span><span class="tm">{escape(r["team"])}</span></div>'
         f'<div class="proj"><b>{_n(r["proj"])}</b><small>proj yds</small></div></div>'
         f'<div class="game">{escape(_opp(r))} &middot; {escape(r["kick_txt"])}'
@@ -129,19 +353,24 @@ def _elite_card(r, cat) -> str:
         f'<dl class="stats"><div><dt>Season</dt><dd>{_n(r["total"])} (#{int(r["rank"])})</dd></div>'
         f'<div><dt>Per game</dt><dd>{_n(r["ypg"], 1)}</dd></div><div><dt>Last 3</dt><dd>{_n(r["l3"], 1)}</dd></div>'
         f'<div><dt>Games</dt><dd>{int(r["games"])}</dd></div></dl>'
-        f'{_line_box(r["proj"], key)}</article>')
+        f'{LINE_BOX}{LOG_FORM}</article>')
 
 
-def _backup_card(r, cat) -> str:
-    key = f"b|{cat.key}|{r['name']}|{r['week']}"
+def _backup_card(r, cat, ctx) -> str:
     v = cat.vol_short
     priced = r["streak"] >= C.ESTABLISHED_AFTER
     p = r["p_out"]
+    snap = dict(sheet="backup", cat=cat.key, pid=r["player_id"], name=r["name"], team=r["team"], opp=r["opp_txt"],
+                week=int(r["week"]), season=ctx["season"], kickoff=_iso(r["kickoff"]), proj=round(float(r["proj_exp"]), 2),
+                proj_if_out=round(float(r["proj_if_out"]), 2), p_out=round(float(p), 3), starters_out=r["starters_out"],
+                role=r["role"], streak=int(r["streak"]), base_vol=round(float(r["base_vol"]), 2),
+                proj_vol=round(float(r["proj_vol"]), 2), last_vol=round(float(r["last_vol"]), 1), ypv=round(float(r["ypv"]), 3),
+                opp_rank=int(r["opp_rank"]), opp_vs_lg=round(float(r["opp_vs_lg"]), 4), inj=r["inj"], spr_tot=r["spr_tot"])
     pchip = (f'<span class="chip out">Starter out</span>' if p >= 0.99
              else f'<span class="chip q">{p:.0%} chance starter is out</span>')
     priced_chip = '<span class="chip">likely priced in</span>' if priced else ""
     return (
-        f'<article class="card{" priced" if priced else ""}">'
+        f'<article class="card{" priced" if priced else ""}" data-snap="{_snap_attr(snap)}">'
         f'<div class="top"><div><span class="name">{escape(r["name"])}</span><span class="tm">{escape(r["team"])} &middot; {escape(r["role"])}</span></div>'
         f'<div class="proj"><b>{_n(r["proj_exp"])}</b><small>exp yds</small></div></div>'
         f'<div class="game">{escape(_opp(r))} &middot; {escape(r["kick_txt"])}'
@@ -152,10 +381,10 @@ def _backup_card(r, cat) -> str:
         f'<div><dt>{v}/G proj</dt><dd>{_n(r["proj_vol"], 1)}</dd></div>'
         f'<div><dt>Last game</dt><dd>{_n(r["last_vol"])}</dd></div>'
         f'<div><dt>If out</dt><dd>{_n(r["proj_if_out"])} yds</dd></div></dl>'
-        f'{_line_box(r["proj_exp"], key)}</article>')
+        f'{LINE_BOX}{LOG_FORM}</article>')
 
 
-def _columns(frames: dict, card) -> str:
+def _columns(frames: dict, card, ctx: dict) -> str:
     out = []
     for k, cat in C.CATS.items():
         df = frames.get(k)
@@ -163,7 +392,7 @@ def _columns(frames: dict, card) -> str:
         if df is None or df.empty:
             body = '<div class="empty">No qualifying players for this slate.</div>'
         else:
-            body = "".join(card(r, cat) for _, r in df.iterrows())
+            body = "".join(card(r, cat, ctx) for _, r in df.iterrows())
         out.append(f'<section class="col {k}" id="{{pfx}}-{k}"><h2>{title}</h2>{body}</section>')
     return "".join(out)
 
@@ -187,41 +416,58 @@ def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> st
             notes.append(f"Week {w} injury reports aren't out yet, so those games carry no injury flags.")
     note_html = "".join(f'<div class="note">{escape(n)}</div>' for n in notes)
     dl = f' &middot; <a href="{xlsx_name}">Download Excel</a>' if xlsx_name else ""
-    p1 = _columns(res.elite, _elite_card).replace("{pfx}", "e")
-    p2 = _columns(res.backups, _backup_card).replace("{pfx}", "b")
+    ctx = {"season": res.season}
+    p1 = _columns(res.elite, _elite_card, ctx).replace("{pfx}", "e")
+    p2 = _columns(res.backups, _backup_card, ctx).replace("{pfx}", "b")
+    cal = CAL.load() or {}
+    calib_json = json.dumps({"elite": cal.get("elite", {}), "backup": cal.get("backup", {})}, separators=(",", ":"))
+    meta_json = json.dumps({"built": _iso(m["generated"]), "season": res.season, "weeks": m["weeks"]})
+    def _jsonscript(id_, text):                      # keep "</script>" out of inline JSON
+        return f'<script type="application/json" id="{id_}">' + text.replace("</", "<\\/") + "</script>"
+    data_scripts = _jsonscript("meta", meta_json) + _jsonscript("calib", calib_json)
     body = f"""<div class="wrap">
 <h1>NFL Prop Model</h1>
 <p class="sub">{res.season} season &middot; week{"s" if len(m["weeks"]) > 1 else ""} {escape(wk)} &middot; {m["games"]} games not yet kicked off &middot; stats through week {m["data_through_week"]} &middot; updated {escape(upd)}{dl}</p>
 {note_html}
 <div class="tabs" role="tablist">
 <button class="tab" role="tab" data-p="p1" aria-selected="true">Elite vs weak D</button>
-<button class="tab" role="tab" data-p="p2" aria-selected="false">Backups</button></div>
+<button class="tab" role="tab" data-p="p2" aria-selected="false">Backups</button>
+<button class="tab" role="tab" data-p="p3" aria-selected="false">My bets<span id="bcount"></span></button></div>
 
 <div class="panel" id="p1">
-<p class="lede">Top {m["top_n"]} at each position by {res.season} yards, facing one of the {m["weak_n"]} defenses that allow the most yards to that position. <b>Proj</b> is a fair-value anchor, not a prediction: type the sportsbook line in the box to see the gap.</p>
+<p class="lede">Top {m["top_n"]} at each position by {res.season} yards, facing one of the {m["weak_n"]} defenses that allow the most yards to that position. <b>Proj</b> is a fair-value anchor, not a prediction: type the sportsbook line in the box to see the model's chance of going Over (lean Over at 55%+, Under at 45% or less).</p>
 {_chipnav("e")}<div class="cols">{p1}</div></div>
 
 <div class="panel" id="p2" hidden>
 <p class="lede">QB2, RB2+ and WR3+ on teams missing a starter who carries real volume. <b>Exp yds</b> is weighted by the chance the starter actually sits; <b>If out</b> assumes he does. Faded cards: the starter has already missed 3+ straight games, so the market has had time to adjust.</p>
 {_chipnav("b")}<div class="cols">{p2}</div></div>
 
+<div class="panel" id="p3" hidden>
+<p class="lede">Your bet log, kept on <b>this device only</b>. When you save a bet, the page freezes what the model knew right then: projection, matchup, injury status, the line, and when the data was built. Results come later from a separate file and only grade the bet, so they can never rewrite what the model said. Bets lock at kickoff: no adding, no deleting afterward. Stats usually post by Tuesday.</p>
+<div class="warnbox" id="bwarn" hidden>Your browser is blocking storage, so bets can't be saved here. Try a normal (non-private) window.</div>
+<div id="bsum"></div><div id="blist"></div>
+<div class="btools"><button type="button" id="bexp">Export bets</button><label class="btn">Import bets<input type="file" id="bimp" accept="application/json" hidden></label></div>
+</div>
+
 <section class="trust"><h3>How much to trust this</h3><ul>
 <li>Back-tested on 2023-25: elite players beat their baseline by about 1-8% against weak defenses and fall 8-12% short against strong ones. The effect is real, but books price the headline matchups too.</li>
+<li>The Over/Under lean for elite players comes from how far past outcomes landed from the projection (hold-out checked: within roughly 2-10 points). Backups get no lean because those past results were too inconsistent.</li>
 <li>Single-game yardage is noisy (typical miss: about 75 yds for QBs, 43 for RB/WR), so projections barely beat a plain season average on accuracy.</li>
 <li>Backups: the model gets the size of the extra workload right (QB, RB, WR), is strong for QBs and modest for RBs, and can't reliably say which WR gets the extra targets.</li>
 <li>Late injuries and inactives aren't visible until the next report, so check the news before betting.</li>
-<li>There are no sportsbook lines in the data. The edge box only compares the model to the number you type.</li></ul></section>
+<li>There are no sportsbook lines in the data. The lean only compares the model to the number you type, and a 55% lean still loses plenty at normal prices.</li></ul></section>
 <footer>For research and entertainment only, not betting advice. Gamble responsibly and only if you are of legal age where you live.
 Data: <a href="https://github.com/nflverse/nflverse-data">nflverse</a>. Method, back-tests and code: <a href="{REPO_URL}">GitHub</a>.</footer>
 </div>"""
     if fragment:
-        return f"<title>NFL Prop Model</title>\n<style>{CSS}</style>\n{body}\n<script>{JS}</script>"
+        return f"<title>NFL Prop Model</title>\n<style>{CSS}</style>\n{body}\n{data_scripts}<script>{JS}</script>"
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
 <title>NFL Prop Model</title>
 <meta name="description" content="QB passing, RB rushing and WR receiving yard research: elite players vs weak defenses, and backups stepping in for injured starters.">
-<style>{CSS}</style></head><body>{body}<script>{JS}</script></body></html>"""
+<style>{CSS}</style></head><body>{body}{data_scripts}<script>{JS}</script></body></html>"""
 
 
 def write_site(res, out_dir: Path, xlsx_path: Path | None = None) -> Path:
@@ -231,5 +477,7 @@ def write_site(res, out_dir: Path, xlsx_path: Path | None = None) -> Path:
     if has_xlsx and Path(xlsx_path).resolve() != (out_dir / XLSX_NAME).resolve():   # may already be in place
         shutil.copyfile(xlsx_path, out_dir / XLSX_NAME)
     (out_dir / "index.html").write_text(render(res, XLSX_NAME if has_xlsx else None), encoding="utf-8")
+    (out_dir / "results.json").write_text(json.dumps(res.results or {"season": res.season, "final": [], "y": {}},
+                                                       separators=(",", ":")), encoding="utf-8")
     (out_dir / ".nojekyll").write_text("")
     return out_dir / "index.html"
