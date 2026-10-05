@@ -129,6 +129,7 @@ Single-game yardage is very noisy, so treat Proj as a fair-value anchor, not a p
 | Wider pools (RB 15, WR 25) | tuning unchanged; model beats naive by more | yes |
 | A second method (volume x regressed efficiency) as a cross-check | a near-clone: corr 0.97-0.99 with the production projection, same accuracy, no added information (t 0.9-1.6) | no |
 | Teammates ruled Out as a forward signal for elite players | right direction, not significant (QB t=1.4, RB 1.7 on 38 games, WR 1.0) | no |
+| Forecasting *touches* (attempts / carries+catches / targets): touches are steadier than yards (baseline misses 26% / 33% / 41% of the mean vs ~30% / 52% / 57% for yards) | QB attempts respond to a defense's volume-allowed rating (t=4.1, error -2.9%); teammates out raise RB touches +19% (t=3.6, 36 games) and WR targets +6% (t=2.8) but do not improve out-of-sample accuracy; none of it helps yards | not yet |
 | Opposing defenders ruled Out as a forward signal | nothing (t <= 0.6) | no |
 | Snap share for who absorbs a starter's volume | RB corr 0.29 -> 0.32, volume error about -3%; WR 0.10 -> 0.13, small | yes (RB 0.5, WR 0.25) |
 
@@ -183,7 +184,7 @@ props/        config.py (all constants) | data.py | slate.py | defense.py | game
 .github/      workflows/refresh.yml (scheduled rebuild + Pages deploy)
 research/     backtest_elite.py | backtest_backups.py | calibrate_injuries.py | calibrate_distribution.py | review_bets.py
               experiment_game_context.py | experiment_defense_rating.py | experiment_snaps.py
-              experiment_opportunity_model.py | experiment_forward_signals.py
+              experiment_opportunity_model.py | experiment_forward_signals.py | experiment_touches.py
 tests/        pytest suite
 output/       generated workbooks
 ```
