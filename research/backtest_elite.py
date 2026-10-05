@@ -73,8 +73,9 @@ def run(season, cat, K, k_def, lam, topn=10, start_wk=4):
                 continue
             t = t.iloc[0]
             m, n = tot.loc[pid, "mean"], tot.loc[pid, "size"]
+            l3 = hist[hist.player_id == pid].sort_values("week").y.tail(3).mean()
             pm = prev_p.loc[pid, "mean"] if pid in prev_p.index and prev_p.loc[pid, "size"] >= C.MIN_PRIOR_GAMES else m
-            rows.append(dict(season=season, week=w, y=t.y, ytd=m, base=shrink(m, n, pm, K),
+            rows.append(dict(season=season, week=w, pid=pid, team=t.team, opp=t.opponent_team, l3=l3, y=t.y, ytd=m, base=shrink(m, n, pm, K),
                              f=bl.get(t.opponent_team, bl.mean()) / bl.mean(),
                              orank=rank.get(t.opponent_team, np.nan)))
     return pd.DataFrame(rows)
