@@ -36,3 +36,10 @@ def test_write_site(tmp_path):
     assert idx.exists() and (tmp_path / "site" / "NFL_Props_latest.xlsx").exists()
     assert (tmp_path / "site" / ".nojekyll").exists()
     assert "Download Excel" in idx.read_text()
+
+
+def test_write_site_when_workbook_already_lives_in_the_site_folder(tmp_path):
+    site = tmp_path / "site"; site.mkdir()
+    x = site / "NFL_Props_latest.xlsx"; x.write_bytes(b"x")          # what the CI workflow does
+    idx = write_site(result(), site, x)
+    assert idx.exists() and x.read_bytes() == b"x"

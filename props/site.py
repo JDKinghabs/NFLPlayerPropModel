@@ -16,11 +16,11 @@ CSS = """
 :root{--bg:#f6f7f9;--card:#fff;--ink:#14181f;--mute:#5b6573;--line:#e3e7ec;--accent:#1f4e78;
 --good:#0b7a3b;--good-bg:#dff3e6;--bad:#b3261e;--bad-bg:#fbe3e1;--weak:#b5541a;--weak-bg:#fde8d8;
 --strong:#1f5fa8;--strong-bg:#e1ecf8;--warn-bg:#fff4cf;--qb:#1f4e78;--rb:#2f6b2a;--wr:#8a4b08}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]):not([data-theme=dark]){--bg:#0f1318;--card:#181e26;--ink:#e8ecf1;
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]):not([data-theme=dark]){color-scheme:dark;--bg:#0f1318;--card:#181e26;--ink:#e8ecf1;
 --mute:#9aa6b4;--line:#2a323d;--accent:#7fb0e0;--good:#5fd391;--good-bg:#133c26;--bad:#ff8c84;--bad-bg:#4a1d1a;
 --weak:#f2a56b;--weak-bg:#4a2d17;--strong:#8dbcf0;--strong-bg:#183049;--warn-bg:#3d3511;--qb:#7fb0e0;--rb:#86d17f;--wr:#f0b36a}}
 
-:root[data-theme=dark]{--bg:#0f1318;--card:#181e26;--ink:#e8ecf1;
+:root[data-theme=dark]{color-scheme:dark;--bg:#0f1318;--card:#181e26;--ink:#e8ecf1;
 --mute:#9aa6b4;--line:#2a323d;--accent:#7fb0e0;--good:#5fd391;--good-bg:#133c26;--bad:#ff8c84;--bad-bg:#4a1d1a;
 --weak:#f2a56b;--weak-bg:#4a2d17;--strong:#8dbcf0;--strong-bg:#183049;--warn-bg:#3d3511;--qb:#7fb0e0;--rb:#86d17f;--wr:#f0b36a}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
@@ -173,7 +173,8 @@ def _chipnav(pfx: str) -> str:
         f'<a href="#{pfx}-{k}">{k}</a>' for k in C.CATS) + "</nav>"
 
 
-def render(res, xlsx_name: str | None = XLSX_NAME) -> str:
+def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> str:
+    """Full HTML page, or (fragment=True) just title + style + body + script for hosts that supply the skeleton."""
     m = res.meta
     wk = ", ".join(map(str, m["weeks"]))
     upd = m["generated"].strftime("%a %b %d, %I:%M %p ET").replace(" 0", " ")
@@ -188,12 +189,7 @@ def render(res, xlsx_name: str | None = XLSX_NAME) -> str:
     dl = f' &middot; <a href="{xlsx_name}">Download Excel</a>' if xlsx_name else ""
     p1 = _columns(res.elite, _elite_card).replace("{pfx}", "e")
     p2 = _columns(res.backups, _backup_card).replace("{pfx}", "b")
-    return f"""<!doctype html>
-<html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NFL Prop Model</title>
-<meta name="description" content="QB passing, RB rushing and WR receiving yard research: elite players vs weak defenses, and backups stepping in for injured starters.">
-<style>{CSS}</style></head><body><div class="wrap">
+    body = f"""<div class="wrap">
 <h1>NFL Prop Model</h1>
 <p class="sub">{res.season} season &middot; week{"s" if len(m["weeks"]) > 1 else ""} {escape(wk)} &middot; {m["games"]} games not yet kicked off &middot; stats through week {m["data_through_week"]} &middot; updated {escape(upd)}{dl}</p>
 {note_html}
@@ -217,14 +213,22 @@ def render(res, xlsx_name: str | None = XLSX_NAME) -> str:
 <li>There are no sportsbook lines in the data. The edge box only compares the model to the number you type.</li></ul></section>
 <footer>For research and entertainment only, not betting advice. Gamble responsibly and only if you are of legal age where you live.
 Data: <a href="https://github.com/nflverse/nflverse-data">nflverse</a>. Method, back-tests and code: <a href="{REPO_URL}">GitHub</a>.</footer>
-</div><script>{JS}</script></body></html>"""
+</div>"""
+    if fragment:
+        return f"<title>NFL Prop Model</title>\n<style>{CSS}</style>\n{body}\n<script>{JS}</script>"
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NFL Prop Model</title>
+<meta name="description" content="QB passing, RB rushing and WR receiving yard research: elite players vs weak defenses, and backups stepping in for injured starters.">
+<style>{CSS}</style></head><body>{body}<script>{JS}</script></body></html>"""
 
 
 def write_site(res, out_dir: Path, xlsx_path: Path | None = None) -> Path:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     has_xlsx = xlsx_path is not None and Path(xlsx_path).exists()
-    if has_xlsx:
+    if has_xlsx and Path(xlsx_path).resolve() != (out_dir / XLSX_NAME).resolve():   # may already be in place
         shutil.copyfile(xlsx_path, out_dir / XLSX_NAME)
     (out_dir / "index.html").write_text(render(res, XLSX_NAME if has_xlsx else None), encoding="utf-8")
     (out_dir / ".nojekyll").write_text("")
