@@ -84,3 +84,16 @@ def test_questionable_starter_gives_probability_weighted_projection():
 
 def test_nothing_listed_when_everyone_healthy():
     assert build_team(0.0).empty
+
+
+def test_snap_share_steers_redistribution_toward_the_player_on_the_field(monkeypatch):
+    # r1 is out; r2 and r3 have identical (zero) history but r3 plays far more snaps
+    tv = team_volume({w: {"r1": 20, "r2": 0, "r3": 0, "q": 3} for w in (1, 2, 3)})
+    depth = {"r2": 2, "r3": 3}
+    monkeypatch.setitem(C.SNAP_WEIGHT, "RB", 0.0)
+    flat, _, _ = _scenario(tv, RB, ["r1"], ["r2", "r3"], depth, {"r2": 0.1, "r3": 0.8})
+    monkeypatch.setitem(C.SNAP_WEIGHT, "RB", 1.0)
+    steered, _, _ = _scenario(tv, RB, ["r1"], ["r2", "r3"], depth, {"r2": 0.1, "r3": 0.8})
+    assert flat["r2"] > flat["r3"]                                 # depth bonus alone favours RB2
+    assert steered["r3"] > steered["r2"]                           # snap share overrides it
+    assert sum(steered.values()) == pytest.approx(sum(flat.values()))   # same total volume, redistributed differently

@@ -25,6 +25,7 @@ from props.backups import backup_table                          # noqa: E402
 from props.data import STAT_COLS, cached                        # noqa: E402
 from props.defense import defense_ratings                       # noqa: E402
 from props.slate import _kickoff, _team_rows                    # noqa: E402
+from props.snaps import prepare_snaps                           # noqa: E402
 
 
 def load(year):
@@ -42,12 +43,20 @@ def proxy_depth(stats, cat):
         ["team", "gsis_id", "pos_abb", "pos_rank"]]
 
 
+def load_snaps(season):
+    snap = pd.read_csv(cached(f"snap_counts/snap_counts_{season}.csv", False))
+    ro = pd.read_csv(cached(f"rosters/roster_{season}.csv", False), usecols=["gsis_id", "pfr_id"])
+    sn = prepare_snaps(snap, ro)
+    return sn
+
+
 def run(season: int):
     cur_all, prev = load(season), load(season - 1)
     games = pd.read_csv(cached("schedules/games.csv", True))
     games = games[(games.season == season) & (games.game_type == "REG")].copy()
     inj = pd.read_csv(cached(f"injuries/injuries_{season}.csv", False))
     roster = pd.DataFrame(columns=["team", "position", "full_name", "gsis_id", "status", "week"])
+    snaps_all = load_snaps(season)
     rows = []
     for W in range(4, 19):
         gw = games[games.week == W]
@@ -61,7 +70,7 @@ def run(season: int):
         for k, cat in C.CATS.items():
             ratings = defense_ratings(seen, prev, cat)
             bt = backup_table(cat, seen, prev, ratings, slate, proxy_depth(seen, cat), roster, pout,
-                              injuries_names=inj)
+                              injuries_names=inj, snaps=snaps_all[snaps_all.week < W])
             if bt.empty:
                 continue
             bt = bt[bt.p_out >= 0.99]                     # starter definitively listed Out

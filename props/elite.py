@@ -5,7 +5,8 @@ import pandas as pd
 
 from . import config as C
 from .config import Category
-from .defense import shrink
+from .defense import matchup_beta, shrink
+from .gamescript import context_effect, multiplier
 from .slate import fmt_kick, fmt_opp, fmt_spread_total
 
 
@@ -35,14 +36,14 @@ def prior_ypg(prev_stats: pd.DataFrame, cat: Category) -> pd.Series:
 
 
 def elite_table(cat: Category, stats, prev_stats, ratings: pd.DataFrame, slate: pd.DataFrame,
-                pout_by_week: dict, top_n: int = C.ELITE_TOP_N, weak_n: int = C.WEAK_DEF_N,
+                pout_by_week: dict, top_n: int | None = None, weak_n: int = C.WEAK_DEF_N,
                 ) -> pd.DataFrame:
     """Top-N at the position (by season yards) whose upcoming opponent is a weak defense."""
     t = season_table(stats, cat)
     if t.empty:
         return pd.DataFrame()
     t["rank"] = t.total.rank(ascending=False, method="min").astype(int)
-    elite = t[t["rank"] <= top_n].copy()
+    elite = t[t["rank"] <= (top_n or cat.elite_n)].copy()
 
     prior = prior_ypg(prev_stats, cat)
     elite["base"] = [shrink(y, g, prior.get(pid, float("nan")), C.PLAYER_PRIOR_GAMES)
@@ -54,7 +55,10 @@ def elite_table(cat: Category, stats, prev_stats, ratings: pd.DataFrame, slate: 
     m = m.merge(ratings[["defense", "rank", "blend", "vs_lg", "factor"]]
                 .rename(columns={"rank": "opp_rank", "blend": "opp_alw"}),
                 left_on="opp", right_on="defense", how="left")
-    m["proj"] = m.base * (1 + C.MATCHUP_BETA * (m.factor - 1))
+    m["gs"] = [multiplier(cat.key, sp, o, h) for sp, o, h in zip(m.spread, m.ou, m.home)]
+    m["gs_ctx"] = [context_effect(cat.key, sp, o, h) for sp, o, h in zip(m.spread, m.ou, m.home)]
+    m["beta"] = [matchup_beta(cat.key, int(r)) for r in m["rank"]]
+    m["proj"] = m.base * (1 + m.beta * (m.factor - 1)) * m.gs
 
     inj_label, p_out = [], []
     for pid, wk in zip(m.player_id, m.week):
@@ -66,7 +70,7 @@ def elite_table(cat: Category, stats, prev_stats, ratings: pd.DataFrame, slate: 
             inj_label.append(""); p_out.append(0.0)
     m["inj"], m["p_out"] = inj_label, p_out
 
-    m = m[(m.opp_rank <= weak_n) & (m.p_out < 0.99)].copy()
+    m = m[(m.opp_rank <= weak_n) & (m.p_out < 0.99) & m.proj.notna()].copy()      # never list a card with no projection
     m["opp_txt"] = m.apply(fmt_opp, axis=1)
     m["kick_txt"] = m.kickoff.map(fmt_kick)
     m["spr_tot"] = [fmt_spread_total(s, o) for s, o in zip(m.spread, m.ou)]

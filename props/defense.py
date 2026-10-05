@@ -8,11 +8,14 @@ from .config import Category
 
 
 def shrink(x, n, prior, k):
-    """Blend a sample mean x (n observations) with a prior worth k observations."""
+    """Blend a sample mean x (n observations) with a prior worth k observations.
+
+    No usable prior (a rookie, say) -> the sample mean; no sample -> the prior.
+    """
     n = 0 if pd.isna(n) else n
-    if n + k <= 0:
-        return prior
-    if pd.isna(x):
+    if pd.isna(prior):
+        return x
+    if pd.isna(x) or n + k <= 0:
         return prior
     return (n * x + k * prior) / (n + k)
 
@@ -50,3 +53,11 @@ def defense_ratings(stats: pd.DataFrame, prev_stats: pd.DataFrame, cat: Category
     cur["vs_lg"] = cur.factor - 1
     cur["rank"] = cur.blend.rank(ascending=False, method="min").astype(int)
     return cur.reset_index(names="defense")
+
+
+def matchup_beta(cat_key: str, rank: int) -> float:
+    """How much of the defense's edge to pass through for a player of this season-yards rank."""
+    for bound, beta in C.MATCHUP_BETA_TIERS.get(cat_key, [(10**6, C.MATCHUP_BETA)]):
+        if rank <= bound:
+            return beta
+    return C.MATCHUP_BETA_TIERS[cat_key][-1][1]

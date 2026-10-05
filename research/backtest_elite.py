@@ -20,7 +20,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from props import config as C                       # noqa: E402
 from props.data import STAT_COLS, cached            # noqa: E402
-from props.defense import shrink                    # noqa: E402
+from props.defense import matchup_beta, shrink     # noqa: E402
+from props.gamescript import multiplier             # noqa: E402
 
 warnings.filterwarnings("ignore")
 
@@ -67,7 +68,7 @@ def run(season, cat, K, k_def, lam, topn=10, start_wk=4):
                  for d, r in al.iterrows()}
         bl = pd.Series(blend)
         rank = bl.rank(ascending=False, method="min")
-        for pid in top:
+        for prank, pid in enumerate(top, 1):
             t = tgt[tgt.player_id == pid]
             if t.empty:
                 continue
@@ -75,23 +76,51 @@ def run(season, cat, K, k_def, lam, topn=10, start_wk=4):
             m, n = tot.loc[pid, "mean"], tot.loc[pid, "size"]
             l3 = hist[hist.player_id == pid].sort_values("week").y.tail(3).mean()
             pm = prev_p.loc[pid, "mean"] if pid in prev_p.index and prev_p.loc[pid, "size"] >= C.MIN_PRIOR_GAMES else m
-            rows.append(dict(season=season, week=w, pid=pid, team=t.team, opp=t.opponent_team, l3=l3, y=t.y, ytd=m, base=shrink(m, n, pm, K),
+            rows.append(dict(season=season, week=w, prank=prank, pid=pid, team=t.team, opp=t.opponent_team, l3=l3, y=t.y, ytd=m, base=shrink(m, n, pm, K),
                              f=bl.get(t.opponent_team, bl.mean()) / bl.mean(),
                              orank=rank.get(t.opponent_team, np.nan)))
     return pd.DataFrame(rows)
 
 
-def add_projection(df, pull, beta):
+_LINES = None
+
+
+def game_lines():
+    """Closing spread / total per team-game: spread < 0 means the team is favoured (book notation)."""
+    global _LINES
+    if _LINES is None:
+        g = pd.read_csv(cached("schedules/games.csv", True))
+        g = g[g.game_type == "REG"]
+        home = pd.DataFrame({"season": g.season, "week": g.week, "team": g.home_team, "home": True,
+                             "spread": -g.spread_line, "ou": g.total_line})
+        away = pd.DataFrame({"season": g.season, "week": g.week, "team": g.away_team, "home": False,
+                             "spread": g.spread_line, "ou": g.total_line})
+        _LINES = pd.concat([home, away], ignore_index=True)
+    return _LINES
+
+
+def add_projection(df, pull, beta=None, cat_key=None):
+    """Production projection: shrunk baseline x matchup (x game script for categories that use it).
+
+    beta=None -> the production rank-tiered matchup weight (needs cat_key and df.prank).
+    """
     gm = df.groupby(["season", "week"]).base.transform("mean")
     base = (1 - pull) * df.base + pull * gm
-    return base * (1 + beta * (df.f - 1))
+    if beta is None:
+        beta = np.asarray([matchup_beta(cat_key, int(r)) for r in df.prank])
+    proj = base * (1 + beta * (df.f - 1))
+    if cat_key in C.GAME_SCRIPT:
+        ln = df[["season", "week", "team"]].merge(game_lines(), on=["season", "week", "team"], how="left")
+        proj = proj * np.asarray([multiplier(cat_key, sp, o, h) for sp, o, h in zip(ln.spread, ln.ou, ln.home)])
+    return proj
 
 
 def thesis(seasons=(2023, 2024, 2025)):
-    print("== Do elite players do better against weak defenses?  (top-10 YTD, weeks 4-18, 2023-25) ==")
+    print("== Do elite players do better against weak defenses?  (QB top 10, RB top 15, WR top 25 YTD; weeks 4-18, 2023-25) ==")
     for k, cat in C.CATS.items():
-        df = pd.concat([run(s, cat, C.PLAYER_PRIOR_GAMES, C.DEF_PRIOR_GAMES, C.DEF_PRIOR_REGRESS) for s in seasons])
-        print(f"\n{k}: n={len(df)}")
+        df = pd.concat([run(s, cat, C.PLAYER_PRIOR_GAMES, C.DEF_PRIOR_GAMES, C.DEF_PRIOR_REGRESS, topn=cat.elite_n)
+                        for s in seasons])
+        print(f"\n{k} (top {cat.elite_n}): n={len(df)}")
         for name, sub in (("weak D (worst 10)", df[df.orank <= 10]),
                           ("middle", df[(df.orank > 10) & (df.orank < 23)]),
                           ("strong D (best 10)", df[df.orank >= 23])):
@@ -104,8 +133,8 @@ def thesis(seasons=(2023, 2024, 2025)):
 def production_check():
     print("\n== Production parameters, 2025 hold-out vs naive season-to-date average ==")
     for k, cat in C.CATS.items():
-        df = run(2025, cat, C.PLAYER_PRIOR_GAMES, C.DEF_PRIOR_GAMES, C.DEF_PRIOR_REGRESS)
-        proj = add_projection(df, C.ELITE_GROUP_PULL, C.MATCHUP_BETA)
+        df = run(2025, cat, C.PLAYER_PRIOR_GAMES, C.DEF_PRIOR_GAMES, C.DEF_PRIOR_REGRESS, topn=cat.elite_n)
+        proj = add_projection(df, C.ELITE_GROUP_PULL, None, k)
         rm = lambda e: float(np.sqrt(np.mean(e ** 2)))                   # noqa: E731
         print(f"  {k}: RMSE model={rm(df.y - proj):.1f} naive={rm(df.y - df.ytd):.1f} | "
               f"bias model={np.mean(df.y - proj):+.1f} naive={np.mean(df.y - df.ytd):+.1f}")

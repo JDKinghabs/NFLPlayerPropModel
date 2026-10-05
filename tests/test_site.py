@@ -9,7 +9,7 @@ def result():
     ko = pd.Timestamp("2026-10-04 13:00", tz="America/New_York")
     elite = pd.DataFrame([dict(player_id="00-1", kickoff=ko, name="A <b>Bold</b> Player", team="AAA", opp_txt="@BBB", kick_txt="Sun 10/4 1p",
                                spr_tot="-3 / 44", inj="Q (28%)", rank=1, games=3, total=900, ypg=300.0, l3=310.0,
-                               opp_rank=2, opp_alw=250.0, vs_lg=0.1, proj=270.0, week=4)])
+                               opp_rank=2, opp_alw=250.0, vs_lg=0.1, proj=270.0, week=4, gs_ctx=0.05, beta=0.0)])
     backups = pd.DataFrame([dict(player_id="00-2", kickoff=ko, name="Back Up", team="AAA", opp_txt="BBB", kick_txt="Sun 10/4 1p", spr_tot="",
                                  inj="", role="RB2", starters_out="Starter OUT", p_out=1.0, streak=3, base_vol=5.0,
                                  last_vol=6.0, proj_vol=12.0, ypv=4.2, opp_rank=20, opp_vs_lg=-0.05,
@@ -18,7 +18,8 @@ def result():
     return Result(2026, pd.DataFrame(), {}, {"QB": elite, "RB": empty, "WR": empty},
                   {"QB": empty, "RB": backups, "WR": empty},
                   {"generated": pd.Timestamp("2026-10-04 12:00", tz="America/New_York"), "weeks": [4, 5], "games": 2,
-                   "data_through_week": 3, "injury_reports": {4: (4, False), 5: (4, True)}, "top_n": 10, "weak_n": 10},
+                   "data_through_week": 3, "injury_reports": {4: (4, False), 5: (4, True)},
+                   "top_n": {"QB": 10, "RB": 15, "WR": 25}, "weak_n": 10, "model": "v2"},
                   {"season": 2026, "final": ["2026|3|AAA"], "y": {"2026|3|00-1|QB": 250}})
 
 
@@ -76,3 +77,17 @@ def test_write_site_publishes_results_separately(tmp_path):
     r = json.loads((tmp_path / "s" / "results.json").read_text())
     assert r["final"] == ["2026|3|AAA"] and r["y"]["2026|3|00-1|QB"] == 250
     assert "250" not in (tmp_path / "s" / "index.html").read_text().split('id="meta"')[0]    # results never baked into cards
+
+
+def test_new_model_features_are_visible_and_stamped():
+    import json
+    from html import unescape
+    from props import config as C
+    html = render(result())
+    assert "10 QBs, 15 RBs and 25 WRs" in html
+    assert "Game script +5%" in html and "Matchup not predictive at this rank" in html      # chips from gs_ctx / beta
+    snaps = [json.loads(unescape(m)) for m in re.findall(r'data-snap="([^"]+)"', html)]
+    assert all(x["model"] == C.MODEL_VERSION for x in snaps)
+    meta = json.loads(re.search(r'id="meta">(.*?)</script>', html, re.S).group(1))
+    assert meta["model"] == "v2"
+    assert "Model check" in html and "review_bets.py" in html                               # feedback loop is wired into the page

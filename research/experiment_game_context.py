@@ -27,7 +27,7 @@ tg=pd.concat([side(g,True),side(g,False)])
 rows=[]
 for k,cat in C.CATS.items():
     for s in (2022,2023,2024,2025):
-        d=BE.run(s,cat,C.PLAYER_PRIOR_GAMES,C.DEF_PRIOR_GAMES,C.DEF_PRIOR_REGRESS)
+        d=BE.run(s,cat,C.PLAYER_PRIOR_GAMES,C.DEF_PRIOR_GAMES,C.DEF_PRIOR_REGRESS,topn=cat.elite_n)
         d["proj0"]=BE.add_projection(d,C.ELITE_GROUP_PULL,C.MATCHUP_BETA); d["cat"]=k; rows.append(d)
 D=pd.concat(rows).merge(tg,on=["season","week","team"],how="left")
 D["tt_r"]=D.team_total/22.5-1; D["fav7"]=D.fav/7; D["tot_r"]=D.total/45-1; D["wind10"]=np.minimum(D.wind,25)/10
@@ -73,3 +73,15 @@ for name in ("script: implied team total","script: favourite margin","weather: w
         b=np.linalg.lstsq(X,y,rcond=None)[0]; res_=y-X@b; cov=np.linalg.inv(X.T@X)*res_.var(ddof=X.shape[1]); t=b/np.sqrt(np.diag(cov))
         out.append(f"{k}: "+", ".join(f"{f}={b[i+1]:+.3f}(t={t[i+1]:+.1f})" for i,f in enumerate(feats)))
     print(f"  {name:28s} "+" | ".join(out))
+
+# ---- chosen model: QB only, implied team total + home field, fit jointly ----------------------------
+print("\n== Chosen: QB game-script multiplier  1 + a*(team_total/league - 1) + b*home ==")
+print("league average team total 2022-25:", round(float(tg.team_total.mean()), 2))
+d = D[D.cat == "QB"]; feats = ["tt_r", "home"]
+b_all = ols(d[feats].values, d.r.values)
+print(f"fit on all 4 seasons: a={b_all[1]:.3f}  b={b_all[2]:.3f}  (intercept {b_all[0]:+.3f}, absorbed by the shrinkage)")
+tr, te = d[d.season < 2025], d[d.season == 2025]
+b_tr = ols(tr[feats].values, tr.r.values)
+pred = te.proj0 * (1 + b_tr[1] * te.tt_r + b_tr[2] * te.home)          # no intercept: keep the level calibrated
+print(f"fit 2022-24 -> a={b_tr[1]:.3f} b={b_tr[2]:.3f}; 2025 hold-out RMSE {rm(te.y - te.proj0):.1f} -> {rm(te.y - pred):.1f} "
+      f"({(rm(te.y - pred) / rm(te.y - te.proj0) - 1) * 100:+.1f}%), MAE {np.mean(abs(te.y - te.proj0)):.1f} -> {np.mean(abs(te.y - pred)):.1f}")

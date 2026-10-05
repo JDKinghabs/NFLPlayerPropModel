@@ -10,6 +10,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from . import config as C
+from .site import pool_text
 
 FONT = "Calibri"
 BLOCK_FILL = {"QB": "1F4E78", "RB": "375623", "WR": "7F3F00"}      # dark header bands
@@ -161,7 +162,7 @@ def write_workbook(res, path: Path) -> None:
     ws.title = "1 Elite vs Weak D"
     _header(
         ws, "Elite performers vs defenses that give up the category", _sub(res),
-        [f"Elite = top {res.meta['top_n']} at the position by {res.season} yards (QB passing, RB rushing, WR receiving). "
+        [f"Elite = top {pool_text(res.meta['top_n'])} by {res.season} yards (passing, rushing, receiving). "
          f"Weak defense = one of the {res.meta['weak_n']} allowing the most yards to that position (Opp Rk 1 = worst).",
          "Proj = per-game baseline (shrunk toward last year and the elite pack) x defense edge. L3 = last 3 games. "
          "Type the book number in the yellow Line column: Edge goes green when the model is above the line, red below."])

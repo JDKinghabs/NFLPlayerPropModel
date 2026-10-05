@@ -28,7 +28,7 @@ class Result:
 
 def build(season: int | None = None, weeks: list[int] | None = None, refresh: bool = False,
           include_started: bool = False, now: pd.Timestamp | None = None, lookahead: int = 1,
-          top_n: int = C.ELITE_TOP_N, weak_n: int = C.WEAK_DEF_N, data: dict | None = None) -> Result:
+          top_n: int | None = None, weak_n: int = C.WEAK_DEF_N, data: dict | None = None) -> Result:
     now = now if now is not None else pd.Timestamp.now(tz=ET)
     season = season or current_season(now)
     d = data or load_all(season, refresh=refresh)
@@ -49,7 +49,7 @@ def build(season: int | None = None, weeks: list[int] | None = None, refresh: bo
         elite[k] = elite_table(cat, d["stats"], d["prev_stats"], ratings[k], slate, pout,
                                top_n=top_n, weak_n=weak_n)
         backups[k] = backup_table(cat, d["stats"], d["prev_stats"], ratings[k], slate, d["depth"],
-                                  d["roster"], pout, injuries_names=d["injuries"])
+                                  d["roster"], pout, injuries_names=d["injuries"], snaps=d.get("snaps"))
 
     inj_notes = {}
     for w in slate_weeks:
@@ -61,6 +61,6 @@ def build(season: int | None = None, weeks: list[int] | None = None, refresh: bo
         "games": int(len(slate) // 2),
         "data_through_week": int(d["stats"].week.max()) if len(d["stats"]) else 0,
         "injury_reports": inj_notes,
-        "top_n": top_n, "weak_n": weak_n,
+        "top_n": {k: (top_n or cat.elite_n) for k, cat in C.CATS.items()}, "weak_n": weak_n, "model": C.MODEL_VERSION,
     }
     return Result(season, slate, ratings, elite, backups, meta, build_results(d["stats"], season))

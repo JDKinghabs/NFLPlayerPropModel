@@ -7,6 +7,8 @@ from pathlib import Path
 import pandas as pd
 import requests
 
+from .snaps import prepare_snaps
+
 BASE = "https://github.com/nflverse/nflverse-data/releases/download"
 CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 
@@ -79,10 +81,13 @@ def load_all(season: int, refresh: bool = False, max_age_hours: float = 3.0) -> 
     inj_p = cached(f"injuries/injuries_{season}.csv", True, required=False, **kw)
     injuries = pd.read_csv(inj_p) if inj_p else pd.DataFrame()
     roster = pd.read_csv(cached(f"rosters/roster_{season}.csv", True, **kw),
-                         usecols=["team", "position", "full_name", "gsis_id", "status", "week"])
+                         usecols=["team", "position", "full_name", "gsis_id", "pfr_id", "status", "week"])
     dc_p = cached(f"depth_charts/depth_charts_{season}.csv", True, required=False, **kw)
     depth = _latest_depth(dc_p)
+    sn_p = cached(f"snap_counts/snap_counts_{season}.csv", True, required=False, **kw)
+    snaps = prepare_snaps(pd.read_csv(sn_p), roster) if sn_p else prepare_snaps(None, None)
     return {
+        "snaps": snaps,
         "games": games,
         "stats": stats(season, True),
         "prev_stats": stats(season - 1, False),

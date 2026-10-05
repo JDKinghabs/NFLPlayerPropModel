@@ -8,6 +8,8 @@ def test_shrink():
     assert shrink(300, 3, 200, 6) == (3 * 300 + 6 * 200) / 9
     assert shrink(np.nan, 0, 200, 6) == 200
     assert shrink(300, 0, 200, 6) == 200
+    assert shrink(300, 3, np.nan, 6) == 300             # rookie with no history: keep the sample mean
+    assert np.isnan(shrink(np.nan, 0, np.nan, 6))
 
 
 def test_rank_one_is_the_defense_allowing_the_most_yards():

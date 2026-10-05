@@ -24,7 +24,9 @@ import pandas as pd
 from . import config as C
 from .config import Category
 from .defense import shrink
+from .gamescript import multiplier
 from .slate import fmt_kick, fmt_opp, fmt_spread_total
+from .snaps import recent_share
 
 
 def _names(*frames_cols) -> dict:
@@ -70,7 +72,8 @@ class _TeamVolume:
         return n
 
 
-def _scenario(tv: _TeamVolume, cat: Category, absent: list, healthy: list, depth_rank: dict):
+def _scenario(tv: _TeamVolume, cat: Category, absent: list, healthy: list, depth_rank: dict,
+              snap: dict | None = None):
     """Projected share of team volume for each healthy player when `absent` starters are out.
 
     Returns (shares dict, n_with, n_without).
@@ -87,6 +90,7 @@ def _scenario(tv: _TeamVolume, cat: Category, absent: list, healthy: list, depth
     vacated = sum(tv.share(a, with_w) for a in absent)
 
     bonus = C.DEPTH_BONUS.get(cat.key, {})
+    snap_w = C.SNAP_WEIGHT.get(cat.key, 0.0)
     if cat.redistribute == "group":
         pool = healthy
     else:                                                # every teammate who gets volume
@@ -94,7 +98,8 @@ def _scenario(tv: _TeamVolume, cat: Category, absent: list, healthy: list, depth
     weight = {}
     for j in pool:
         weight[j] = (s_with[j] if j in s_with else tv.share(j, with_w)) \
-            + (bonus.get(depth_rank.get(j, 99), 0.0) if j in healthy else 0.0)
+            + (bonus.get(depth_rank.get(j, 99), 0.0) if j in healthy else 0.0) \
+            + snap_w * (snap or {}).get(j, 0.0)
     tot = sum(weight.values())
     ren = {j: s_with[j] + (vacated * weight.get(j, 0.0) / tot if tot > 0 else 0.0) for j in healthy}
 
@@ -105,7 +110,7 @@ def _scenario(tv: _TeamVolume, cat: Category, absent: list, healthy: list, depth
 
 
 def backup_table(cat: Category, stats, prev_stats, ratings, slate, depth, roster, pout_by_week,
-                 injuries_names=None) -> pd.DataFrame:
+                 injuries_names=None, snaps: pd.DataFrame | None = None) -> pd.DataFrame:
     cur = stats.copy()
     cur["vol"] = cur[cat.volume].fillna(0)
     allseasons = pd.concat([cur, prev_stats], ignore_index=True) if len(prev_stats) else cur
@@ -153,8 +158,9 @@ def backup_table(cat: Category, stats, prev_stats, ratings, slate, depth, roster
         absent_all = set(certain) | set(maybe)
         healthy = [j for j in members if j not in absent_all and pmap.get(j, (0.0, ""))[0] < 0.99]
 
-        s_in, _, _ = _scenario(tv, cat, certain, healthy, depth_rank)
-        s_out, n_with, n_wo = _scenario(tv, cat, certain + maybe, healthy, depth_rank)
+        snap = recent_share(snaps, T) if snaps is not None else None
+        s_in, _, _ = _scenario(tv, cat, certain, healthy, depth_rank, snap)
+        s_out, n_with, n_wo = _scenario(tv, cat, certain + maybe, healthy, depth_rank, snap)
         s_base, _, _ = _scenario(tv, cat, [], healthy, depth_rank)
 
         p_q = 1.0 - np.prod([1 - pmap[j][0] for j in maybe]) if maybe else 0.0
@@ -162,7 +168,7 @@ def backup_table(cat: Category, stats, prev_stats, ratings, slate, depth, roster
 
         tv_pg = shrink(tv.team_vol.mean(), len(tv.weeks), lg_team_pg, C.TEAM_VOL_PRIOR_GAMES)
         f = rank_by_def.factor.get(sl.opp, 1.0)
-        adj = 1 + C.MATCHUP_BETA * (f - 1)
+        adj = (1 + C.MATCHUP_BETA * (f - 1)) * multiplier(cat.key, sl.spread, sl.ou, sl.home, level=False)
 
         streaks = [tv.missed_streak(a) for a in certain + maybe]
         streak = min(streaks) if streaks else 0

@@ -90,6 +90,8 @@ details.logbox summary{cursor:pointer;font-size:13px;font-weight:650;color:var(-
 .badge.win{background:var(--good-bg);color:var(--good);border-color:transparent}.badge.loss{background:var(--bad-bg);color:var(--bad);border-color:transparent}
 .badge.void,.badge.push{background:var(--warn-bg);border-color:transparent}
 .bet .small{font-size:12px;color:var(--mute)}
+.mcheck{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 12px}.mcheck h3{margin:0 0 4px;font-size:15px}
+.mcheck table{border-collapse:collapse;font-size:13px;margin:6px 0;width:100%}.mcheck th,.mcheck td{text-align:left;padding:3px 8px 3px 0;border-bottom:1px solid var(--line)}.mcheck th{color:var(--mute);font-weight:600;font-size:12px}
 .btools{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}
 .warnbox{background:var(--bad-bg);color:var(--bad);border-radius:8px;padding:8px 12px;font-size:13px;margin:0 0 12px}
 [hidden]{display:none!important}
@@ -172,7 +174,7 @@ $$('article.card').forEach(function(card){
     var p=pOver(snap.sheet,snap.cat,snap.proj,L);
     bets.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,7), enteredAt:new Date().toISOString(), builtAt:META.built,
       season:snap.season, week:snap.week, team:snap.team, pid:snap.pid, name:snap.name, cat:snap.cat, sheet:snap.sheet, kickoff:snap.kickoff,
-      side:side, line:L, odds:odds, stake:stake, pOver:p, lean:leanOf(p), snap:snap});
+      side:side, line:L, odds:odds, stake:stake, pOver:p, lean:leanOf(p), model:snap.model||'v1', snap:snap});
     writeBets(bets); updateCount();
     msg.textContent=storageOK?'Saved. Open the "My bets" tab to see it. Snapshot frozen at '+fmtTime(new Date().toISOString())+'.':'Could not save: your browser is blocking storage.';
   });
@@ -215,6 +217,24 @@ function summarize(rows){
   });
   return st;
 }
+function modelCheck(rows){
+  var done=rows.filter(function(x){return x.g.actual!==undefined&&x.b.snap&&x.b.snap.proj>0});
+  if(done.length<5) return '';
+  var cats={}; done.forEach(function(x){var c=cats[x.b.cat]||(cats[x.b.cat]={n:0,s:0}); c.n++; c.s+=x.g.actual/x.b.snap.proj-1});
+  var h='<div class="mcheck"><h3>Model check</h3><p class="small">Is the model running high or low on the players you actually bet on? (actual yards vs the frozen projection)</p><table><tr><th>Position</th><th>Bets</th><th>Actual vs projection</th></tr>';
+  Object.keys(cats).forEach(function(k){var c=cats[k],m=c.s/c.n;h+='<tr><td>'+CATNAME[k]+'</td><td>'+c.n+'</td><td>'+(m>0?'+':'')+(m*100).toFixed(0)+'%</td></tr>'});
+  h+='</table>';
+  var cal=done.filter(function(x){return x.b.pOver!=null&&x.g.s!=='push'});
+  if(cal.length>=10){
+    var B=[[0,.35,'under 35%'],[.35,.45,'35-45%'],[.45,.55,'45-55%'],[.55,.65,'55-65%'],[.65,1.01,'65%+']];
+    h+='<p class="small">When the model said a given chance of Over, how often did it happen?</p><table><tr><th>Model P(over)</th><th>Bets</th><th>Said</th><th>Happened</th></tr>';
+    B.forEach(function(r){var g=cal.filter(function(x){return x.b.pOver>=r[0]&&x.b.pOver<r[1]});
+      if(!g.length) return; var said=g.reduce(function(a,x){return a+x.b.pOver},0)/g.length, hit=g.filter(function(x){return x.g.actual>x.b.line}).length/g.length;
+      h+='<tr><td>'+r[2]+'</td><td>'+g.length+'</td><td>'+Math.round(said*100)+'%</td><td>'+Math.round(hit*100)+'%</td></tr>'});
+    h+='</table>';
+  }
+  return h+'<p class="small">Small samples swing wildly. Export your bets and run research/review_bets.py for a version with error bars before changing anything.</p></div>';
+}
 function tile(label,val,cls){return '<div><dt>'+label+'</dt><dd class="'+(cls||'')+'">'+val+'</dd></div>'}
 function renderBets(){
   var box=$('#blist'), sum=$('#bsum');
@@ -232,7 +252,7 @@ function renderBets(){
     if(ag) h+=tile('Went against lean',st.aw+'-'+st.al);
     h+='</dl>';
     if(settled<30) h+='<p class="small" style="color:var(--mute);font-size:12px">'+settled+' settled bets so far. Anything under about 100 is mostly luck, so treat these numbers as a diary, not a verdict.</p>';
-    sum.innerHTML=bets.length?h:'';
+    sum.innerHTML=bets.length?h+modelCheck(rows):'';
     if(!bets.length){box.innerHTML='<div class="empty">No bets logged yet. On the other tabs, enter a book line on any card, open "Log a bet", pick a side and save. Bets lock at kickoff.</div>';updateCount();return}
     box.innerHTML=rows.map(function(x){
       var b=x.b,g=x.g,sn=b.snap||{}, locked=Date.now()>=Date.parse(b.kickoff);
@@ -246,7 +266,7 @@ function renderBets(){
         '<div>'+esc(b.side)+' '+b.line+' @ '+(b.odds>0?'+':'')+b.odds+' · '+b.stake+'u</div>'+
         '<div class="small">Model when you logged it: '+model+'</div>'+
         '<div class="small">'+res+'</div>'+
-        '<div class="small">Logged '+fmtTime(b.enteredAt)+' from data built '+fmtTime(b.builtAt)+'; kickoff '+fmtTime(b.kickoff)+
+        '<div class="small">Logged '+fmtTime(b.enteredAt)+' from data built '+fmtTime(b.builtAt)+' (model '+esc(b.model||'v1')+'); kickoff '+fmtTime(b.kickoff)+
         (locked?' (locked)':'')+'</div>'+
         (locked?'':'<div><button type="button" class="del" data-id="'+esc(b.id)+'">Delete</button></div>')+'</article>';
     }).join('');
@@ -296,6 +316,17 @@ def _rank_chip(rank, vs_lg) -> str:
     return f'<span class="chip {cls}">Opp {word} #{rank} &middot; {vs_lg:+.0%} vs avg</span>'
 
 
+def _script_chip(snap) -> str:
+    g = snap.get("gs_ctx") or 0
+    return f'<span class="chip">Game script {g:+.0%}</span>' if abs(g) >= 0.02 else ""
+
+
+def _tier_chip(snap) -> str:
+    if snap.get("beta") == 0:
+        return '<span class="chip">Matchup not predictive at this rank</span>'
+    return ""
+
+
 def _inj_chip(label) -> str:
     if not label:
         return ""
@@ -342,14 +373,15 @@ def _elite_card(r, cat, ctx) -> str:
                 week=int(r["week"]), season=ctx["season"], kickoff=_iso(r["kickoff"]), proj=round(float(r["proj"]), 2),
                 opp_rank=int(r["opp_rank"]), opp_vs_lg=round(float(r["vs_lg"]), 4), inj=r["inj"], rank=int(r["rank"]),
                 total=r["total"], ypg=round(float(r["ypg"]), 1), l3=round(float(r["l3"]), 1), games=int(r["games"]),
-                spr_tot=r["spr_tot"])
+                spr_tot=r["spr_tot"], model=C.MODEL_VERSION, gs_ctx=round(float(r.get("gs_ctx", 0) or 0), 4),
+                beta=round(float(r.get("beta", C.MATCHUP_BETA)), 2))
     return (
         f'<article class="card" data-snap="{_snap_attr(snap)}">'
         f'<div class="top"><div><span class="name">{escape(r["name"])}</span><span class="tm">{escape(r["team"])}</span></div>'
         f'<div class="proj"><b>{_n(r["proj"])}</b><small>proj yds</small></div></div>'
         f'<div class="game">{escape(_opp(r))} &middot; {escape(r["kick_txt"])}'
         f'{" &middot; " + escape(r["spr_tot"]) if r["spr_tot"] else ""}</div>'
-        f'<div class="chips">{_rank_chip(r["opp_rank"], r["vs_lg"])}{_inj_chip(r["inj"])}</div>'
+        f'<div class="chips">{_rank_chip(r["opp_rank"], r["vs_lg"])}{_script_chip(snap)}{_tier_chip(snap)}{_inj_chip(r["inj"])}</div>'
         f'<dl class="stats"><div><dt>Season</dt><dd>{_n(r["total"])} (#{int(r["rank"])})</dd></div>'
         f'<div><dt>Per game</dt><dd>{_n(r["ypg"], 1)}</dd></div><div><dt>Last 3</dt><dd>{_n(r["l3"], 1)}</dd></div>'
         f'<div><dt>Games</dt><dd>{int(r["games"])}</dd></div></dl>'
@@ -365,7 +397,8 @@ def _backup_card(r, cat, ctx) -> str:
                 proj_if_out=round(float(r["proj_if_out"]), 2), p_out=round(float(p), 3), starters_out=r["starters_out"],
                 role=r["role"], streak=int(r["streak"]), base_vol=round(float(r["base_vol"]), 2),
                 proj_vol=round(float(r["proj_vol"]), 2), last_vol=round(float(r["last_vol"]), 1), ypv=round(float(r["ypv"]), 3),
-                opp_rank=int(r["opp_rank"]), opp_vs_lg=round(float(r["opp_vs_lg"]), 4), inj=r["inj"], spr_tot=r["spr_tot"])
+                opp_rank=int(r["opp_rank"]), opp_vs_lg=round(float(r["opp_vs_lg"]), 4), inj=r["inj"], spr_tot=r["spr_tot"],
+                model=C.MODEL_VERSION)
     pchip = (f'<span class="chip out">Starter out</span>' if p >= 0.99
              else f'<span class="chip q">{p:.0%} chance starter is out</span>')
     priced_chip = '<span class="chip">likely priced in</span>' if priced else ""
@@ -402,6 +435,12 @@ def _chipnav(pfx: str) -> str:
         f'<a href="#{pfx}-{k}">{k}</a>' for k in C.CATS) + "</nav>"
 
 
+def pool_text(top_n) -> str:
+    """'10 QBs, 15 RBs and 25 WRs' (top_n may be a dict per position or a single int)."""
+    n = top_n if isinstance(top_n, dict) else {k: top_n for k in C.CATS}
+    return f'{n["QB"]} QBs, {n["RB"]} RBs and {n["WR"]} WRs'
+
+
 def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> str:
     """Full HTML page, or (fragment=True) just title + style + body + script for hosts that supply the skeleton."""
     m = res.meta
@@ -421,7 +460,8 @@ def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> st
     p2 = _columns(res.backups, _backup_card, ctx).replace("{pfx}", "b")
     cal = CAL.load() or {}
     calib_json = json.dumps({"elite": cal.get("elite", {}), "backup": cal.get("backup", {})}, separators=(",", ":"))
-    meta_json = json.dumps({"built": _iso(m["generated"]), "season": res.season, "weeks": m["weeks"]})
+    meta_json = json.dumps({"built": _iso(m["generated"]), "season": res.season, "weeks": m["weeks"],
+                            "model": m.get("model", C.MODEL_VERSION)})
     def _jsonscript(id_, text):                      # keep "</script>" out of inline JSON
         return f'<script type="application/json" id="{id_}">' + text.replace("</", "<\\/") + "</script>"
     data_scripts = _jsonscript("meta", meta_json) + _jsonscript("calib", calib_json)
@@ -435,7 +475,7 @@ def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> st
 <button class="tab" role="tab" data-p="p3" aria-selected="false">My bets<span id="bcount"></span></button></div>
 
 <div class="panel" id="p1">
-<p class="lede">Top {m["top_n"]} at each position by {res.season} yards, facing one of the {m["weak_n"]} defenses that allow the most yards to that position. <b>Proj</b> is a fair-value anchor, not a prediction: type the sportsbook line in the box to see the model's chance of going Over (lean Over at 55%+, Under at 45% or less).</p>
+<p class="lede">The top {pool_text(m["top_n"])} by {res.season} yards, facing one of the {m["weak_n"]} defenses that allow the most yards to that position. <b>Proj</b> is a fair-value anchor, not a prediction. A few huge games pull averages up, so the typical RB or WR game lands below the projection and a line right at the projection usually leans Under. Type the sportsbook line in the box to see the model's chance of going Over (lean Over at 55%+, Under at 45% or less).</p>
 {_chipnav("e")}<div class="cols">{p1}</div></div>
 
 <div class="panel" id="p2" hidden>
@@ -450,8 +490,9 @@ def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> st
 </div>
 
 <section class="trust"><h3>How much to trust this</h3><ul>
-<li>Back-tested on 2023-25: elite players beat their baseline by about 1-8% against weak defenses and fall 8-12% short against strong ones. The effect is real, but books price the headline matchups too.</li>
-<li>The Over/Under lean for elite players comes from how far past outcomes landed from the projection (hold-out checked: within roughly 2-10 points). Backups get no lean because those past results were too inconsistent.</li>
+<li>Back-tested on 2023-25: against weak defenses QBs landed about 3% above their baseline and RBs about 10% above; against strong defenses QBs landed about 12% below and RBs 9% below. Receivers showed much less defense effect, especially outside the top 10 WRs. Books price the headline matchups too.</li>
+<li>The Over/Under lean for elite players comes from how far past outcomes landed from the projection (hold-out checked: within roughly 2-7 points). Backups get no lean because those past results were too inconsistent.</li>
+<li>The matchup edge is applied at full strength for QBs and the top of the RB and WR lists, and less or not at all further down: in past seasons the defense barely predicted how depth receivers (WR 11-25) did, so those cards say so.</li>
 <li>Single-game yardage is noisy (typical miss: about 75 yds for QBs, 43 for RB/WR), so projections barely beat a plain season average on accuracy.</li>
 <li>Backups: the model gets the size of the extra workload right (QB, RB, WR), is strong for QBs and modest for RBs, and can't reliably say which WR gets the extra targets.</li>
 <li>Late injuries and inactives aren't visible until the next report, so check the news before betting.</li>

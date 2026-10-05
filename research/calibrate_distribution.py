@@ -1,6 +1,7 @@
 """Fit the error distributions behind the site's P(over) and check them out of sample.
 
-  Elite sheet : ratio = actual yards / projection for the walk-forward top-10 players (2023-25).
+  Elite sheet : ratio = actual yards / projection for the walk-forward pools (QB 10, RB 15, WR 25; 2023-25),
+                using the production projection including the QB game-script term.
   Backups     : ratio = actual yards / "Proj if Out" for backups whose starter was listed Out and who
                 played (2024-25).
 
@@ -34,8 +35,8 @@ LINES = (0.8, 0.9, 1.0, 1.1, 1.2)
 
 
 def elite_rows(season, cat):
-    df = BE.run(season, cat, C.PLAYER_PRIOR_GAMES, C.DEF_PRIOR_GAMES, C.DEF_PRIOR_REGRESS)
-    df["proj"] = BE.add_projection(df, C.ELITE_GROUP_PULL, C.MATCHUP_BETA)
+    df = BE.run(season, cat, C.PLAYER_PRIOR_GAMES, C.DEF_PRIOR_GAMES, C.DEF_PRIOR_REGRESS, topn=cat.elite_n)
+    df["proj"] = BE.add_projection(df, C.ELITE_GROUP_PULL, None, cat.key)
     return df.assign(ratio=df.y / df.proj)
 
 

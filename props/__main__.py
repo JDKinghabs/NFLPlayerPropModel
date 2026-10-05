@@ -21,7 +21,7 @@ def main(argv=None):
     ap.add_argument("--refresh", action="store_true", help="re-download all data now")
     ap.add_argument("--include-started", action="store_true",
                     help="also include games that have already kicked off (not final)")
-    ap.add_argument("--top", type=int, default=C.ELITE_TOP_N, help="'elite' = top N at the position")
+    ap.add_argument("--top", type=int, default=None, help="override 'elite' pool size (default: QB 10, RB 15, WR 25)")
     ap.add_argument("--weak", type=int, default=C.WEAK_DEF_N,
                     help="'weak defense' = N defenses allowing the most yards to the position")
     a = ap.parse_args(argv)
