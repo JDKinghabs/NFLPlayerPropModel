@@ -148,6 +148,8 @@ def _sub(res) -> str:
     for w, (rep, stale) in m["injury_reports"].items():
         if stale:
             parts.append(f"week {w} injury report not out yet - using week {rep}'s, carried forward at historical odds")
+        elif rep is None:
+            parts.append(f"week {w} injury report not out yet - no injury flags for those games")
     return "  |  ".join(parts)
 
 

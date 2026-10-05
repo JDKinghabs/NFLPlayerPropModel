@@ -13,10 +13,11 @@ def _kickoff(games: pd.DataFrame) -> pd.Series:
 
 
 def select_slate(games: pd.DataFrame, season: int, weeks: list[int] | None = None,
-                 now: pd.Timestamp | None = None, include_started: bool = False) -> pd.DataFrame:
+                 now: pd.Timestamp | None = None, include_started: bool = False,
+                 lookahead: int = 1) -> pd.DataFrame:
     """One row per (game, team) for games that have not kicked off.
 
-    weeks=None -> the earliest week that still has a game to play.
+    weeks=None -> the earliest week that still has a game to play, plus `lookahead - 1` more weeks.
     """
     now = now if now is not None else pd.Timestamp.now(tz=ET)
     g = games[(games.season == season) & (games.game_type == "REG")].copy()
@@ -26,7 +27,8 @@ def select_slate(games: pd.DataFrame, season: int, weeks: list[int] | None = Non
         pending = g[open_game]
         if pending.empty:
             return _team_rows(pending)
-        weeks = [int(pending.week.min())]
+        first = int(pending.week.min())
+        weeks = list(range(first, first + lookahead))
     g = g[open_game & g.week.isin(weeks)]
     return _team_rows(g)
 

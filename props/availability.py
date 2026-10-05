@@ -9,8 +9,9 @@ from . import config as C
 def injury_week_for(injuries: pd.DataFrame, week: int) -> tuple[pd.DataFrame, bool, int | None]:
     """Injury rows to use for a slate week.
 
-    Returns (rows, stale, report_week). If no report exists yet for `week`
-    (e.g. looking ahead to next week) we fall back to the latest earlier report and flag it stale.
+    Returns (rows, stale, report_week). If no report exists yet for `week` we fall back to the
+    previous week's report and flag it stale.  Anything older is ignored: the carry-over odds were
+    calibrated for exactly one week, and a two-week-old "Out" says little.
     """
     if injuries is None or injuries.empty:
         return pd.DataFrame(), False, None
@@ -19,7 +20,7 @@ def injury_week_for(injuries: pd.DataFrame, week: int) -> tuple[pd.DataFrame, bo
     if week in avail:
         return inj[inj.week == week], False, week
     earlier = [w for w in avail if w < week]
-    if earlier:
+    if earlier and week - earlier[-1] == 1:          # carry-over odds are only calibrated for 1 week
         return inj[inj.week == earlier[-1]], True, int(earlier[-1])
     return pd.DataFrame(), False, None
 

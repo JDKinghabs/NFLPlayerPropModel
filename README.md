@@ -16,11 +16,20 @@ pip install -r requirements.txt
 python -m props                    # earliest week with games still to play
 python -m props --weeks 5          # a specific week (or several: --weeks 4 5)
 python -m props --refresh          # force a re-download (data is cached for 3h in data/raw/)
-pytest                             # 18 tests
+pytest                             # 20 tests
 ```
 
 Output goes to `output/NFL_Props_<season>_Wk<weeks>.xlsx`. Only games that have **not kicked off** are shown.
 Run it again Wednesday, Friday and Sunday morning: injury news is the main thing that moves Sheet 2.
+
+## Live website
+
+A GitHub Action (`.github/workflows/refresh.yml`) rebuilds the workbook and a static site from fresh nflverse data
+and publishes it to GitHub Pages: daily, plus right after the Wednesday/Friday injury reports and Sunday around noon.
+It covers this week's remaining games plus next week. Pages needs to be switched on once: **Settings -> Pages ->
+Source: "GitHub Actions"**. The site is then at `https://<owner>.github.io/NFLPlayerPropModel/` and is public.
+
+Build it locally with `python -m props --lookahead 2 --site site` and open `site/index.html`.
 
 ## Data
 
@@ -118,7 +127,8 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
 
 ```
 props/        config.py (all constants) | data.py | slate.py | defense.py | availability.py
-              elite.py (Sheet 1) | backups.py (Sheet 2) | workbook.py | pipeline.py | __main__.py
+              elite.py (Sheet 1) | backups.py (Sheet 2) | workbook.py | site.py | pipeline.py | __main__.py
+.github/      workflows/refresh.yml (scheduled rebuild + Pages deploy)
 research/     backtest_elite.py | backtest_backups.py | calibrate_injuries.py
 tests/        pytest suite
 output/       generated workbooks

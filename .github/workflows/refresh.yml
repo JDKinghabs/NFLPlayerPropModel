@@ -1,0 +1,51 @@
+name: Refresh site
+
+# Rebuilds the workbook + website from fresh nflverse data and publishes it to GitHub Pages.
+# One-time setup: repo Settings -> Pages -> Source: "GitHub Actions".
+
+on:
+  schedule:
+    - cron: "0 11 * * *"      # daily ~7am ET (stats finalise after Monday night; injury news lands daily)
+    - cron: "0 22 * * 3,5"    # Wed + Fri ~6pm ET, right after the injury reports are published
+    - cron: "0 16 * * 0"      # Sunday ~noon ET, after inactives are announced
+  workflow_dispatch:
+  push:
+    branches: [main, claude/zealous-tesla-k5x28i]
+    paths: ["props/**", "requirements.txt", ".github/workflows/refresh.yml"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+      - name: Build workbook + site (this week's remaining games plus next week)
+        run: python -m props --lookahead 2 --site site --out site/NFL_Props_latest.xlsx
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

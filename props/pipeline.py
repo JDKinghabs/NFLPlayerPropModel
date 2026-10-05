@@ -25,14 +25,15 @@ class Result:
 
 
 def build(season: int | None = None, weeks: list[int] | None = None, refresh: bool = False,
-          include_started: bool = False, now: pd.Timestamp | None = None,
+          include_started: bool = False, now: pd.Timestamp | None = None, lookahead: int = 1,
           top_n: int = C.ELITE_TOP_N, weak_n: int = C.WEAK_DEF_N, data: dict | None = None) -> Result:
     now = now if now is not None else pd.Timestamp.now(tz=ET)
     season = season or current_season(now)
     d = data or load_all(season, refresh=refresh)
     if d["stats"].empty:
         raise SystemExit(f"No {season} regular-season games have been played yet - nothing to model.")
-    slate = select_slate(d["games"], season, weeks, now=now, include_started=include_started)
+    slate = select_slate(d["games"], season, weeks, now=now, include_started=include_started,
+                         lookahead=lookahead)
 
     ratings = {k: defense_ratings(d["stats"], d["prev_stats"], cat) for k, cat in C.CATS.items()}
     slate_weeks = sorted(slate.week.unique()) if len(slate) else []
