@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 
 COLS = ["player_id", "player_display_name", "position", "team", "opponent_team", "season", "week", "season_type",
         "attempts", "carries", "targets", "receptions", "passing_yards", "rushing_yards", "receiving_yards",
-        "receiving_air_yards", "target_share", "air_yards_share", "wopr"]
+        "receiving_air_yards", "target_share", "air_yards_share", "wopr", "rushing_tds", "receiving_tds"]
 SEASONS = (2022, 2023, 2024, 2025)
 P_OUT_BY_STATUS = {"Out": 1.0, "Doubtful": 1.0, "Questionable": C.P_OUT_QUESTIONABLE_QB}
 
