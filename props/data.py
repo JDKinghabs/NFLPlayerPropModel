@@ -8,6 +8,7 @@ import pandas as pd
 import requests
 
 from .snaps import prepare_snaps
+from .td import read_pbp
 
 BASE = "https://github.com/nflverse/nflverse-data/releases/download"
 CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
@@ -15,7 +16,7 @@ CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 STAT_COLS = [
     "player_id", "player_display_name", "position", "team", "opponent_team", "season", "week",
     "season_type", "attempts", "carries", "targets", "receptions", "passing_yards", "rushing_yards",
-    "receiving_yards",
+    "receiving_yards", "rushing_tds", "receiving_tds",
 ]
 
 
@@ -86,8 +87,13 @@ def load_all(season: int, refresh: bool = False, max_age_hours: float = 3.0) -> 
     depth = _latest_depth(dc_p)
     sn_p = cached(f"snap_counts/snap_counts_{season}.csv", True, required=False, **kw)
     snaps = prepare_snaps(pd.read_csv(sn_p), roster) if sn_p else prepare_snaps(None, None)
+    # play-by-play (about 19 MB per season) feeds the anytime-TD tab only; it is optional
+    pbp = read_pbp(cached(f"pbp/play_by_play_{season}.csv.gz", True, required=False, **kw))
+    prev_pbp = read_pbp(cached(f"pbp/play_by_play_{season - 1}.csv.gz", False, required=False, **kw))
     return {
         "snaps": snaps,
+        "pbp": pbp,
+        "prev_pbp": prev_pbp,
         "games": games,
         "stats": stats(season, True),
         "prev_stats": stats(season - 1, False),

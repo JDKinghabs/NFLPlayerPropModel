@@ -10,6 +10,7 @@ import pandas as pd
 
 from . import calibration as CAL
 from . import config as C
+from .td import TD_GROUPS
 from .volume import TOUCH_LABEL, TOUCH_NAME, TOUCH_WORD
 
 XLSX_NAME = "NFL_Props_latest.xlsx"
@@ -38,7 +39,7 @@ font:inherit;font-weight:600;cursor:pointer}.tab[aria-selected=true]{background:
 .cols{display:grid;grid-template-columns:1fr;gap:20px}
 @media(min-width:1000px){.cols{grid-template-columns:repeat(3,1fr);align-items:start}}
 .col h2{font-size:15px;margin:0 0 8px;padding:8px 12px;border-radius:8px;color:#fff}
-.col.QB h2{background:#1f4e78}.col.RB h2{background:#2f6b2a}.col.WR h2{background:#8a4b08}
+.col.QB h2{background:#1f4e78}.col.RB h2{background:#2f6b2a}.col.WR h2{background:#8a4b08}.col.TE h2{background:#5b3a8a}
 .chipnav{display:flex;gap:8px;margin:4px 0 12px}@media(min-width:1000px){.chipnav{display:none}}
 .chipnav a{padding:6px 12px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none;
 font-weight:600;background:var(--card);font-size:13px}
@@ -97,6 +98,15 @@ details.logbox summary{cursor:pointer;font-size:13px;font-weight:650;color:var(-
 .mcheck table{border-collapse:collapse;font-size:13px;margin:6px 0;width:100%}.mcheck th,.mcheck td{text-align:left;padding:3px 8px 3px 0;border-bottom:1px solid var(--line)}.mcheck th{color:var(--mute);font-weight:600;font-size:12px}
 .btools{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}
 .warnbox{background:var(--bad-bg);color:var(--bad);border-radius:8px;padding:8px 12px;font-size:13px;margin:0 0 12px}
+.tdwk{font-size:13px;font-weight:700;color:var(--mute);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+.tdrow{display:grid;grid-template-columns:2em 1fr auto;gap:4px 10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:0 0 6px}
+.tdrow .rk{color:var(--mute);font-weight:700;text-align:right}.tdrow .nm{font-weight:700}
+.tdrow .gm{color:var(--mute);font-size:12px}
+.tdrow .pt{text-align:right;line-height:1.05}.tdrow .pt b{font-size:22px}.tdrow .pt small{display:block;color:var(--mute);font-size:11px;margin-top:2px}
+.tdrow .tdbox{grid-column:2/4;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:12px;color:var(--mute)}
+.tdrow .tdbox input::placeholder{color:var(--mute);opacity:.55;font-weight:400}
+.tdrow .tdbox input{width:104px;font:inherit;font-weight:650;padding:4px 8px;border:1px solid var(--line);border-radius:8px;background:var(--warn-bg);color:var(--ink)}
+details.more summary{cursor:pointer;font-size:13px;font-weight:650;color:var(--accent);padding:6px 0}
 [hidden]{display:none!important}
 """
 
@@ -181,6 +191,19 @@ $$('article.card').forEach(function(card){
     writeBets(bets); updateCount();
     msg.textContent=storageOK?'Saved. Open the "My bets" tab to see it. Snapshot frozen at '+fmtTime(new Date().toISOString())+'.':'Could not save: your browser is blocking storage.';
   });
+});
+
+/* ---- anytime-TD rows: type the book's American price to see the edge over the model's probability ---- */
+$$('.tdrow').forEach(function(row){
+  var p=parseFloat(row.getAttribute('data-p')), inp=$('.tdodds',row), out=$('.tdedge',row), k='tdodds:'+row.getAttribute('data-k');
+  function upd(){
+    var o=parseFloat(inp.value);
+    if(isNaN(o)||Math.abs(o)<100){out.textContent='';out.className='tdedge pov';return}
+    var imp=o>0?100/(o+100):-o/(-o+100), ev=p*(o>0?o/100:100/-o)-(1-p), edge=p-imp;
+    out.textContent='Book implies '+Math.round(imp*100)+'% · edge '+(edge>0?'+':'')+(edge*100).toFixed(1)+' pts · EV '+(ev>0?'+':'')+ev.toFixed(2)+'u per 1u';
+    out.className='tdedge pov '+(edge>0.02?'pos':edge<-0.02?'neg':'');
+  }
+  inp.value=lget(k); upd(); inp.addEventListener('input',function(){lset(k,inp.value);upd()});
 });
 
 /* ---- results + grading (results never touch a saved snapshot) ---- */
@@ -301,7 +324,7 @@ $('#bimp').addEventListener('change',function(ev){
 });
 
 var h=(location.hash||'').slice(1);
-updateCount(); show(document.getElementById(h)&&/^p[123]$/.test(h)?h:'p1');
+updateCount(); show(document.getElementById(h)&&/^p[1234]$/.test(h)?h:'p1');
 })();
 """
 
@@ -389,6 +412,24 @@ def _touch_block(snap: dict, cat) -> str:
             + (f'<p class="tnote">{escape(note)}</p>' if note else ""))
 
 
+def _qb_chip(snap: dict) -> str:
+    if not snap.get("q_flag"):
+        return ""
+    cls = "out" if (snap.get("q_p") or 0) >= 0.99 else "q"
+    return f'<span class="chip {cls}">QB: {escape(snap["q_txt"])}</span>'
+
+
+def _qb_note(snap: dict, cat) -> str:
+    """QB-out flag: the receiver's starting QB may miss his first game.  Information only, not in the projection."""
+    e = C.QB_OUT_EFFECT.get(cat.key)
+    if not snap.get("q_flag") or not e:
+        return ""
+    sits = "is out" if (snap.get("q_p") or 0) >= 0.99 else "sits"
+    return (f'<p class="tnote">QB flag: {escape(snap["q_txt"])}. In a starting QB\'s first missed game ({e["n"]} team-games, 2022-25) '
+            f'top WRs ran about {e["yards"]:+.0%} in receiving yards and {e["targets"]:+.0%} in targets vs baseline. '
+            f'About {snap["q_if"]:.0f} yds if he {sits}. Shown for information only; it is not in the projection.</p>')
+
+
 def _snap_attr(d: dict) -> str:
     return escape(json.dumps({k: _py(v) for k, v in d.items()}, separators=(",", ":")), quote=True)
 
@@ -417,18 +458,19 @@ def _elite_card(r, cat, ctx) -> str:
                 beta=round(float(r.get("beta", C.MATCHUP_BETA)), 2), t_label=TOUCH_LABEL[cat.key],
                 t_exp=_r(r.get("t_exp"), 2), t_base=_r(r.get("t_base"), 2), t_cur=_r(r.get("t_cur"), 2), t_l3=_r(r.get("t_l3"), 2),
                 t_fvol=_r(r.get("t_fvol"), 3), t_vac=_r(r.get("t_vac"), 3), t_flag=bool(r.get("t_flag", False)),
-                t_if=_r(r.get("t_if"), 2), t_out=r.get("t_out", "") or "")
+                t_if=_r(r.get("t_if"), 2), t_out=r.get("t_out", "") or "",
+                q_flag=bool(r.get("q_flag", False)), q_txt=r.get("q_txt", "") or "", q_p=_r(r.get("q_p"), 3), q_if=_r(r.get("q_if"), 1))
     return (
         f'<article class="card" data-snap="{_snap_attr(snap)}">'
         f'<div class="top"><div><span class="name">{escape(r["name"])}</span><span class="tm">{escape(r["team"])}</span></div>'
         f'<div class="proj"><b>{_n(r["proj"])}</b><small>proj yds</small></div></div>'
         f'<div class="game">{escape(_opp(r))} &middot; {escape(r["kick_txt"])}'
         f'{" &middot; " + escape(r["spr_tot"]) if r["spr_tot"] else ""}</div>'
-        f'<div class="chips">{_rank_chip(r["opp_rank"], r["vs_lg"])}{_script_chip(snap)}{_tier_chip(snap)}{_inj_chip(r["inj"])}</div>'
+        f'<div class="chips">{_rank_chip(r["opp_rank"], r["vs_lg"])}{_script_chip(snap)}{_tier_chip(snap)}{_inj_chip(r["inj"])}{_qb_chip(snap)}</div>'
         f'<dl class="stats"><div><dt>Season</dt><dd>{_n(r["total"])} (#{int(r["rank"])})</dd></div>'
         f'<div><dt>Per game</dt><dd>{_n(r["ypg"], 1)}</dd></div><div><dt>Last 3</dt><dd>{_n(r["l3"], 1)}</dd></div>'
         f'<div><dt>Games</dt><dd>{int(r["games"])}</dd></div></dl>'
-        f'{_touch_block(snap, cat)}{LINE_BOX}{LOG_FORM}</article>')
+        f'{_touch_block(snap, cat)}{_qb_note(snap, cat)}{LINE_BOX}{LOG_FORM}</article>')
 
 
 def _backup_card(r, cat, ctx) -> str:
@@ -460,6 +502,40 @@ def _backup_card(r, cat, ctx) -> str:
         f'{LINE_BOX}{LOG_FORM}</article>')
 
 
+TD_SHOWN = 25          # rows per position and week shown up front; the rest sit under "Show all"
+
+
+def _td_row(r, season) -> str:
+    tt = f"team total {r['tt']:.1f}" if pd.notna(r["tt"]) else "no line yet"
+    chips = _inj_chip(r["inj"]) + ('<span class="chip q">Starter out: role may be bigger</span>' if r["role_up"] else "")
+    return (f'<article class="tdrow" data-p="{r["p_td"]:.4f}" data-k="{escape(str(r["player_id"]))}|{int(r["week"])}|{season}">'
+            f'<span class="rk">{int(r["rank"])}</span>'
+            f'<div><span class="nm">{escape(r["name"])}</span><span class="tm">{escape(r["team"])}</span>{chips}'
+            f'<div class="gm">{escape(_opp(r))} &middot; {escape(r["kick_txt"])} &middot; {tt} &middot; {r["xtd"]:.2f} exp TD/G</div></div>'
+            f'<div class="pt"><b>{r["p_td"]:.0%}</b><small>fair {escape(r["fair"])}</small></div>'
+            f'<div class="tdbox"><label>Book odds <input class="tdodds" type="text" inputmode="numeric" placeholder="e.g. +120" '
+            f'aria-label="Sportsbook odds for an anytime touchdown"></label><span class="tdedge pov"></span></div></article>')
+
+
+def _td_columns(td: dict, season: int, note: str = "") -> str:
+    out = []
+    for k in TD_GROUPS:
+        df = td.get(k)
+        if df is None or df.empty:
+            body = f'<div class="empty">{escape(note) if note else "No players for this slate yet."}</div>'
+        else:
+            parts = []
+            for wk, g in df.groupby("week", sort=True):
+                rows = [_td_row(r, season) for _, r in g.iterrows()]
+                head = f'<div class="tdwk">Week {int(wk)}</div>'
+                rest = (f'<details class="more"><summary>Show all {len(rows)}</summary>{"".join(rows[TD_SHOWN:])}</details>'
+                        if len(rows) > TD_SHOWN else "")
+                parts.append(head + "".join(rows[:TD_SHOWN]) + rest)
+            body = "".join(parts)
+        out.append(f'<section class="col {k}" id="t-{k}"><h2>{k} &middot; Anytime TD</h2>{body}</section>')
+    return "".join(out)
+
+
 def _columns(frames: dict, card, ctx: dict) -> str:
     out = []
     for k, cat in C.CATS.items():
@@ -473,9 +549,9 @@ def _columns(frames: dict, card, ctx: dict) -> str:
     return "".join(out)
 
 
-def _chipnav(pfx: str) -> str:
+def _chipnav(pfx: str, keys=None) -> str:
     return '<nav class="chipnav">' + "".join(
-        f'<a href="#{pfx}-{k}">{k}</a>' for k in C.CATS) + "</nav>"
+        f'<a href="#{pfx}-{k}">{k}</a>' for k in (keys or C.CATS)) + "</nav>"
 
 
 def pool_text(top_n) -> str:
@@ -501,6 +577,7 @@ def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> st
     ctx = {"season": res.season}
     p1 = _columns(res.elite, _elite_card, ctx).replace("{pfx}", "e")
     p2 = _columns(res.backups, _backup_card, ctx).replace("{pfx}", "b")
+    p4 = _td_columns(getattr(res, "td", None) or {}, res.season, m.get("td_note", ""))
     cal = CAL.load() or {}
     calib_json = json.dumps({"elite": cal.get("elite", {}), "backup": cal.get("backup", {})}, separators=(",", ":"))
     meta_json = json.dumps({"built": _iso(m["generated"]), "season": res.season, "weeks": m["weeks"],
@@ -515,6 +592,7 @@ def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> st
 <div class="tabs" role="tablist">
 <button class="tab" role="tab" data-p="p1" aria-selected="true">Elite vs weak D</button>
 <button class="tab" role="tab" data-p="p2" aria-selected="false">Backups</button>
+<button class="tab" role="tab" data-p="p4" aria-selected="false">Anytime TD</button>
 <button class="tab" role="tab" data-p="p3" aria-selected="false">My bets<span id="bcount"></span></button></div>
 
 <div class="panel" id="p1">
@@ -524,6 +602,10 @@ def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> st
 <div class="panel" id="p2" hidden>
 <p class="lede">QB2, RB2+ and WR3+ on teams missing a starter who carries real volume. <b>Exp yds</b> is weighted by the chance the starter actually sits; <b>If out</b> assumes he does. Faded cards: the starter has already missed 3+ straight games, so the market has had time to adjust.</p>
 {_chipnav("b")}<div class="cols">{p2}</div></div>
+
+<div class="panel" id="p4" hidden>
+<p class="lede">Chance each RB, WR and TE scores a rushing or receiving touchdown, ranked within each week, <b>if he plays</b> (most books void the bet when a player is inactive). It is built from where his rushes and targets start on the field, how much he is used, and the game's implied scoring. <b>Fair</b> is the American price at which the bet breaks even; type the book's price to see the edge. The top {TD_SHOWN} per position are shown; the Excel download has everyone. QBs are not modelled. A starter being out raises a backup's role, which the model does not know unless the card says so.</p>
+{_chipnav("t", TD_GROUPS)}<div class="cols">{p4}</div></div>
 
 <div class="panel" id="p3" hidden>
 <p class="lede">Your bet log, kept on <b>this device only</b>. When you save a bet, the page freezes what the model knew right then: projection, matchup, injury status, the line, and when the data was built. Results come later from a separate file and only grade the bet, so they can never rewrite what the model said. Bets lock at kickoff: no adding, no deleting afterward. Stats usually post by Tuesday.</p>
@@ -538,6 +620,7 @@ def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> st
 <li>The matchup edge is applied at full strength for QBs and the top of the RB and WR lists, and less or not at all further down: in past seasons the defense barely predicted how depth receivers (WR 11-25) did, so those cards say so.</li>
 <li>Single-game yardage is noisy (typical miss: about 75 yds for QBs, 43 for RB/WR), so projections barely beat a plain season average on accuracy.</li>
 <li>Backups: the model gets the size of the extra workload right (QB, RB, WR), is strong for QBs and modest for RBs, and can't reliably say which WR gets the extra targets.</li>
+<li>Anytime TD: back-tested on 2022-25, the model's chances landed within about 3 points of what happened at every probability level (RB almost exactly). It beats a player's own TD history for RBs and WRs, modestly for TEs, and a single game is still mostly luck: even a 60% player misses 4 times in 10.</li>
 <li>Late injuries and inactives aren't visible until the next report, so check the news before betting.</li>
 <li>There are no sportsbook lines in the data. The lean only compares the model to the number you type, and a 55% lean still loses plenty at normal prices.</li></ul></section>
 <footer>For research and entertainment only, not betting advice. Gamble responsibly and only if you are of legal age where you live.

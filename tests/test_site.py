@@ -99,6 +99,54 @@ def test_new_model_features_are_visible_and_stamped():
     assert "Model check" in html and "review_bets.py" in html                               # feedback loop is wired into the page
 
 
+def td_frame(n=30):
+    rows = []
+    for i in range(n):
+        rows.append(dict(player_id=f"p{i}", name="A <b>Bold</b> RB" if i == 0 else f"Runner {i}", team="AAA", week=4, rank=i + 1,
+                         opp_txt="@BBB", kick_txt="Sun 10/4 1p", tt=27.5 if i else float("nan"), xtd=0.5, p_td=0.6 - i * 0.01,
+                         fair="-150" if i == 0 else "-100", inj="Q (28%)" if i == 1 else "", role_up=(i == 2)))
+    return pd.DataFrame(rows)
+
+
+def test_anytime_td_tab_is_ranked_escaped_capped_and_has_an_odds_box():
+    res = result()
+    res.td = {"RB": td_frame(), "WR": pd.DataFrame(), "TE": pd.DataFrame()}
+    html = render(res)
+    assert 'data-p="p4"' in html and 'id="p4"' in html and ">Anytime TD<" in html
+    assert "A &lt;b&gt;Bold&lt;/b&gt; RB" in html and "<b>Bold</b>" not in html
+    assert 'data-p="0.6000"' in html and "fair -150" in html and "60%" in html
+    assert html.count('class="tdrow"') == 30 and "Show all 30" in html          # 25 up front, the rest folded away
+    assert "no line yet" in html and "team total 27.5" in html
+    assert 'class="tdodds"' in html and "Q (28%)" in html and "Starter out: role may be bigger" in html
+    assert "No players for this slate yet." in html                              # the empty WR / TE columns
+    assert not re.search(r"\bnan\b", html, re.I)
+    assert "/^p[1234]$/" in html                                                  # the new tab is reachable by link
+
+
+def test_anytime_td_tab_shows_why_it_is_empty():
+    res = result()
+    res.meta["td_note"] = "The anytime-TD tab could not be built this time (ValueError)."
+    assert "could not be built this time (ValueError)" in render(res)
+
+
+def test_qb_flag_chip_note_and_frozen_fields_on_wr_cards():
+    import json
+    from html import unescape
+    res = result()
+    wr = res.elite["RB"].assign(player_id="00-4", name="Receiver", t_label="Tgt", q_flag=True, q_txt="Starter QB Q (60%)",
+                                q_p=0.6, q_if=62.4)
+    res.elite["WR"] = wr
+    html = render(res)
+    assert 'chip q">QB: Starter QB Q (60%)' in html
+    assert "QB flag: Starter QB Q (60%)" in html and "about -22% in receiving yards" in html
+    assert "About 62 yds if he sits" in html and "it is not in the projection" in html
+    snaps = [json.loads(unescape(m)) for m in re.findall(r'data-snap="([^"]+)"', html)]
+    w = next(x for x in snaps if x["pid"] == "00-4")
+    assert w["q_flag"] is True and w["q_p"] == 0.6 and w["q_if"] == 62.4
+    q = next(x for x in snaps if x["pid"] == "00-1")
+    assert q["q_flag"] is False and "QB flag" not in html.split('data-snap="')[1]       # unflagged cards stay clean
+
+
 def test_touches_outlook_block_and_frozen_fields():
     import json
     from html import unescape

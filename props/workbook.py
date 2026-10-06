@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 from openpyxl import Workbook
@@ -11,11 +12,12 @@ from openpyxl.utils import get_column_letter
 
 from . import config as C
 from .site import pool_text
+from .td import TD_GROUPS
 from .volume import TOUCH_LABEL
 
 FONT = "Calibri"
-BLOCK_FILL = {"QB": "1F4E78", "RB": "375623", "WR": "7F3F00"}      # dark header bands
-SUB_FILL = {"QB": "DDEBF7", "RB": "E2EFDA", "WR": "FCE4D6"}        # column-header tint
+BLOCK_FILL = {"QB": "1F4E78", "RB": "375623", "WR": "7F3F00", "TE": "5B3A8A"}      # dark header bands
+SUB_FILL = {"QB": "DDEBF7", "RB": "E2EFDA", "WR": "FCE4D6", "TE": "E6DDF0"}        # column-header tint
 INPUT_FILL = PatternFill("solid", fgColor="FFF2CC")
 THIN = Side(style="thin", color="D9D9D9")
 HEADER_ROW, FIRST_ROW = 6, 7
@@ -23,7 +25,7 @@ HEADER_ROW, FIRST_ROW = 6, 7
 
 def _elite_cols(cat):
     lab = TOUCH_LABEL[cat.key]
-    return [
+    cols = [
         ("Player", "name", 20, None), ("Tm", "team", 5, None), ("Opp", "opp_txt", 6, None),
         ("Kickoff", "kick_txt", 15, None), ("Spr / Tot", "spr_tot", 12, None),
         ("Inj", "inj", 13, None), ("Rk", "rank", 4, "0"), ("G", "games", 4, "0"),
@@ -32,6 +34,9 @@ def _elite_cols(cat):
         ("Opp Rk", "opp_rank", 7, "0"), ("Opp Alw/G", "opp_alw", 9, "0.0"),
         ("vs Lg", "vs_lg", 7, '+0%;-0%;0%'), ("Proj", "proj", 7, "0"),
     ]
+    if cat.key in C.QB_OUT_EFFECT:                       # QB may miss his first game (props/qbout.py); not in Proj
+        cols.insert(6, ("QB status", "q_txt", 18, None))
+    return cols
 
 
 def _backup_cols(cat):
@@ -50,7 +55,13 @@ def _backup_cols(cat):
     ]
 
 
-def _write_block(ws, c0, cat, df, cols, proj_key, established_flag=False):
+def _td_edge(p, line, r):
+    """Edge = model probability - the probability implied by the American odds typed in the Line cell."""
+    return (f'=IF(ISNUMBER({line}{r}),{p}{r}-IF({line}{r}<0,-{line}{r}/(-{line}{r}+100),100/({line}{r}+100)),"")')
+
+
+def _write_block(ws, c0, cat, df, cols, proj_key, established_flag=False, line_head="Line", edge_head="Edge",
+                 line_fmt="0.0", edge_fmt='+0.0;-0.0;0.0', edge_formula=None):
     """Write one position block starting at column c0. Returns number of columns used."""
     n = len(cols)
     line_c, edge_c = c0 + n, c0 + n + 1
@@ -63,7 +74,7 @@ def _write_block(ws, c0, cat, df, cols, proj_key, established_flag=False):
     h.fill = PatternFill("solid", fgColor=BLOCK_FILL[cat.key])
     h.alignment = Alignment(horizontal="left", vertical="center", indent=1)
     # column headers
-    heads = [c[0] for c in cols] + ["Line", "Edge"]
+    heads = [c[0] for c in cols] + [line_head, edge_head]
     for i, t in enumerate(heads):
         cell = ws.cell(HEADER_ROW, c0 + i, t)
         cell.font = Font(name=FONT, bold=True, size=9)
@@ -97,7 +108,7 @@ def _write_block(ws, c0, cat, df, cols, proj_key, established_flag=False):
             cell.border = Border(bottom=THIN)
             if fmt:
                 cell.number_format = fmt
-            cell.alignment = Alignment(horizontal="left" if i == 0 or key in ("starters_out", "inj", "spr_tot")
+            cell.alignment = Alignment(horizontal="left" if i == 0 or key in ("starters_out", "inj", "spr_tot", "q_txt", "note")
                                        else "center", vertical="center")
             if key == "opp_rank" and val is not None:
                 if val <= 3:
@@ -110,10 +121,11 @@ def _write_block(ws, c0, cat, df, cols, proj_key, established_flag=False):
                 cell.font = Font(name=FONT, size=10, bold=True, italic=grey,
                                  color="7F7F7F" if grey else "000000")
         lc = ws.cell(r, line_c)
-        lc.fill, lc.number_format, lc.border = INPUT_FILL, "0.0", Border(bottom=THIN)
+        lc.fill, lc.number_format, lc.border = INPUT_FILL, line_fmt, Border(bottom=THIN)
         lc.alignment = Alignment(horizontal="center")
-        ec = ws.cell(r, edge_c, f'=IF(ISNUMBER({line_letter}{r}),{proj_letter}{r}-{line_letter}{r},"")')
-        ec.number_format, ec.border = '+0.0;-0.0;0.0', Border(bottom=THIN)
+        formula = (edge_formula or (lambda p, ln, row: f'=IF(ISNUMBER({ln}{row}),{p}{row}-{ln}{row},"")'))(proj_letter, line_letter, r)
+        ec = ws.cell(r, edge_c, formula)
+        ec.number_format, ec.border = edge_fmt, Border(bottom=THIN)
         ec.alignment, ec.font = Alignment(horizontal="center"), Font(name=FONT, size=10, bold=True)
     last = FIRST_ROW + len(df) - 1
     rng = f"{edge_letter}{FIRST_ROW}:{edge_letter}{last}"
@@ -124,6 +136,15 @@ def _write_block(ws, c0, cat, df, cols, proj_key, established_flag=False):
         formula=[f"AND(ISNUMBER({edge_letter}{FIRST_ROW}),{edge_letter}{FIRST_ROW}<0)"],
         fill=PatternFill("solid", bgColor="FFC7CE"), font=Font(color="9C0006")))
     return width
+
+
+def _td_cols():
+    return [
+        ("Player", "name", 20, None), ("#", "rank", 4, "0"), ("Tm", "team", 5, None), ("Wk", "week", 4, "0"),
+        ("Opp", "opp_txt", 6, None), ("Kickoff", "kick_txt", 15, None), ("Spr / Tot", "spr_tot", 12, None),
+        ("Inj", "inj", 13, None), ("Gm", "n_prev", 4, "0"), ("Touch/G", "pg_touch", 8, "0.0"), ("xTD/G", "xtd", 7, "0.00"),
+        ("Team Tot", "tt", 8, "0.0"), ("Note", "note", 30, None), ("P(TD)", "p_td", 8, "0%"), ("Fair", "fair", 7, None),
+    ]
 
 
 def _header(ws, title, sub, legend):
@@ -185,6 +206,24 @@ def write_workbook(res, path: Path) -> None:
     for k, cat in C.CATS.items():
         c0 += _write_block(ws2, c0, cat, res.backups.get(k), _backup_cols(cat), "proj_exp",
                            established_flag=True) + 1
+
+    # ---------------- Sheet 3 ----------------
+    ws3 = wb.create_sheet("3 Anytime TD")
+    note = res.meta.get("td_note", "")
+    _header(
+        ws3, "Anytime touchdown probability (rushing or receiving TD)", _sub(res),
+        ["P(TD) = chance the player scores a rushing or receiving TD IF he plays (most books void the bet when a player is inactive), ranked "
+         "within each week. Built from where his rushes and targets start on the field, his carries + targets per game and the game's implied "
+         "scoring. Fair = the American price at which the bet breaks even. QBs are not modelled.",
+         "Type the book's American odds (+120, -150) in the yellow column: Edge = model probability minus the probability the odds imply, "
+         "green when the model is higher. xTD/G = expected TDs per game from field position; Gm = games played this season."
+         + (f"  NOTE: {note}" if note else "")])
+    td = getattr(res, "td", None) or {}
+    c0 = 1
+    for k in TD_GROUPS:
+        c0 += _write_block(ws3, c0, SimpleNamespace(key=k, title=f"{k} - Anytime TD"), td.get(k), _td_cols(), "p_td",
+                           line_head="Book odds", edge_head="Edge", line_fmt="+0;-0", edge_fmt='+0.0%;-0.0%;0.0%',
+                           edge_formula=_td_edge) + 1
 
     path.parent.mkdir(parents=True, exist_ok=True)
     wb.save(path)

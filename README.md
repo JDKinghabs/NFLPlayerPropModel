@@ -1,22 +1,24 @@
 # NFL Player Prop Model
 
-Builds a two-sheet Excel workbook for single-game prop research on **QB passing yards, RB rushing
-yards and WR receiving yards**. QB, RB and WR each get their own block of columns on both sheets.
+Builds a three-sheet Excel workbook for single-game prop research on **QB passing yards, RB rushing
+yards and WR receiving yards** (sheets 1-2) and **anytime touchdowns for RB, WR and TE** (sheet 3).
 
 | Sheet | Question it answers |
 |---|---|
 | **1 Elite vs Weak D** | Which top-10 performers at each position face a defense that gives up that category? |
 | **2 Backups** | Which backups inherit volume because a starter is out (or might be)? |
+| **3 Anytime TD** | Which RBs, WRs and TEs are most likely to score a touchdown? Ranked within each week, with the fair American price. |
 
 Every row has a yellow **Line** cell. Type the sportsbook number and **Edge** (`Proj - Line`) turns
-green or red.
+green or red. On sheet 3 the yellow cell takes the book's **American odds** (+120, -150) and Edge is the model's
+probability minus the probability those odds imply.
 
 ```bash
 pip install -r requirements.txt
 python -m props                    # earliest week with games still to play
 python -m props --weeks 5          # a specific week (or several: --weeks 4 5)
 python -m props --refresh          # force a re-download (data is cached for 3h in data/raw/)
-pytest                             # 51 tests
+pytest                             # 70 tests
 ```
 
 Output goes to `output/NFL_Props_<season>_Wk<weeks>.xlsx`. Only games that have **not kicked off** are shown.
@@ -60,7 +62,8 @@ position), so the page shows the projection and a wide past-cases range instead.
 ## Data
 
 Everything comes from [nflverse](https://github.com/nflverse/nflverse-data) (free, no key): weekly player
-stats, schedules (with spreads/totals), injury reports, depth charts and roster status. Sportsbook prop
+stats, schedules (with spreads/totals), injury reports, depth charts, roster status and play-by-play (about
+19 MB per season, used only by the anytime-TD tab; if it fails to download that tab shows a note and the rest is unaffected). Sportsbook prop
 lines are **not** included, so you enter them by hand. An odds feed is the obvious next addition (see Roadmap).
 
 ## How it works
@@ -83,6 +86,13 @@ lines are **not** included, so you enter them by hand. An odds feed is the obvio
      size of the bump (RB touches +19% over 36 games, WR targets +6% over 241). It is **information only**: it did not improve
      out-of-sample accuracy, so it is not folded into the expected number or the yards projection.
    - The forecast is frozen into each saved bet and graded against actual touches (`results.json` carries them) in the Model check.
+6. **QB flag** (WR cards): when the team's starting QB (most attempts this season) may miss the game *and played the previous one*
+   (injury report Out / Doubtful / Questionable, or on IR), the card shows a chip, the historical size of the effect and an
+   "about N yds if he sits" figure. In a QB's first missed game, 2022-25, top WRs ran about -22% in receiving yards and -12% in
+   targets vs baseline (t=-2.6 over 60 team-games, negative in all four seasons). A longer absence is not flagged because the season
+   averages already contain it. It is **information only** (the error gain is small because only about 25 team-games a season
+   qualify), so it is not in Proj. About 15-18 first missed games a season have no report designation (benchings, mid-game exits)
+   and cannot be flagged in advance.
 
 ### Sheet 2: backups
 
@@ -101,6 +111,24 @@ Availability is probabilistic. `P(out)` comes from the injury report and from ro
 next week's report isn't out yet, last week's is carried forward at the **historical** carry-over rate, and the
 cell says so (`OUT (wk4 rpt)`). `Proj if Out` assumes the starter misses; `Proj Exp` weights by `P(out)`.
 Grey italic rows mean the starter has already missed 3+ straight games (the market has had time to price it).
+
+### Sheet 3: anytime touchdowns (RB / WR / TE)
+
+`P(TD)` = chance the player scores a rushing or receiving TD **if he plays** (most books void the bet when a player is inactive).
+Per position, a logistic regression on four things, all from games already played (this season, shrunk toward last season):
+
+1. his **TD history** (anytime-TD frequency),
+2. his **field-position opportunity**: expected TDs per game from where his rushes and targets started (league P(TD) by distance to the
+   end zone, e.g. about 57% from the 1-yard line, 15% from the 5, 4% from the 10-12), from play-by-play,
+3. the game's **implied team total** from the market's spread and total (no line posted yet -> the league average),
+4. his **carries + targets per game**.
+
+Players come from the roster, so someone returning from injury or on a new team is handled; a role player is one whose shrunk usage clears
+6 touches a game (RB), 4 (WR) or 3 (TE), and who has a game this season or a full season last year. Players ruled out are dropped,
+Questionable ones stay with their label. QBs are not modelled (the gain was not stable across seasons). The coefficients live in
+`props/td_model.json`; refit with `python research/fit_td_model.py`. The page ranks within each week and position, shows the top 25
+(the Excel has everyone), and its odds box turns a typed American price into the implied probability, the edge and the EV per unit.
+A card whose starter is out says so instead of re-scoring the backup (the model does not know about the bigger role).
 
 ## Validation (what the evidence says)
 
@@ -139,6 +167,10 @@ Single-game yardage is very noisy, so treat Proj as a fair-value anchor, not a p
 | Forecasting *touches* (attempts / carries+catches / targets): touches are steadier than yards (baseline misses 26% / 33% / 41% of the mean vs ~30% / 52% / 57% for yards) | QB attempts respond to a defense's volume-allowed rating (t=4.1, error -2.9%); teammates out raise RB touches +19% (t=3.6, 36 games) and WR targets +6% (t=2.8) but do not improve out-of-sample accuracy; none of it helps yards | QB: yes (expected attempts). RB/WR: shown as a flag only |
 | Opposing defenders ruled Out as a forward signal | nothing (t <= 0.6) | no |
 | Snap share for who absorbs a starter's volume | RB corr 0.29 -> 0.32, volume error about -3%; WR 0.10 -> 0.13, small | yes (RB 0.5, WR 0.25) |
+| Starting QB out as a signal for his pass-catchers (`research/experiment_qb_out.py`, 2022-25, t-stats clustered by team-game) | **First missed game only** (injury report Out/Doubtful/Questionable, 60 team-games): WR receiving yards -22% (t=-2.6; negative in all 4 seasons), targets -12% and receptions -12%, so about half the drop is efficiency; RB receptions -20% (t=-2.0, directional); TE up but not significant (t 1.0-1.4); RB rushing nothing. A longer absence shows nothing because the season averages already contain it. Error gain is tiny (-0.4% RMSE) because only ~25 team-games a season qualify; the effect is large when it fires | not yet: candidate for a WR/RB receiving flag or multiplier |
+| Teammates out, first missed game vs a longer absence (`research/experiment_fresh_absence.py`, same walk-forward pools, key teammates as in `backups.py`) | "Freshness" generalizes only partly. RB carries respond to a lead back's *first* missed game (+0.91 per 100% of RB carries vacated, t=3.7; flagged games +24% over 52 games) and not afterwards. Receivers' targets respond to a key teammate being out at *any* absence length (WR targets +0.35, t=2.2 forward / 4.0 ex-post; TE similar). None of it improves out-of-sample accuracy, even scored only on the flagged games (RMSE 0.4-10% worse): the effects are small next to single-game noise | no; the existing workload flag stays as information |
+| Anytime-TD probability from field-position opportunity (`research/experiment_td.py`; play-by-play; leave-one-season-out 2022-25, weeks 4+; role players only) | **Calibrated**: predicted vs actual TD rate within about 2.7 points in every quintile for every position (RB within 1.2). Opportunity (expected TDs from where a player's rushes and targets started, rates estimated from the other seasons) beats his TD history for RB (log loss -1.0%, t=-2.9) and WR (-0.7%, t=-2.4), not for TE or QB. The game's implied team total adds (RB cumulative -1.7%, t=-4.0; WR -1.1%, t=-3.2) and carries + targets per game adds more (RB -3.1%, t=-5.3; WR -1.8%, t=-4.4; TE -1.1%, t=-1.8; QB not significant). RB and WR gains hold in all four test seasons; QB is mixed. The opponent's TDs-allowed rate makes it worse (WR t=+4.0). | yes: the "Anytime TD" tab and sheet 3 (RB / WR / TE; QBs excluded) |
+| Role columns nflverse already ships (target share, air-yards share, WOPR, depth of target, yards per target; `research/experiment_role_features.py`) | Nothing reliable out of sample (leave-one-season-out error within +/-0.5% for WR and TE). RB target share looked significant in-sample (t=2.8) but made out-of-sample error worse (+1%). WR depth of target predicts fewer receptions than the baseline (t=-3.9) for only a 0.4% gain | no |
 
 **Sheet 2 mechanism, 2024-25 games where a starter was listed Out and the backup played**
 (`research/backtest_backups.py`; depth rank proxied by volume rank because depth charts aren't archived weekly):
@@ -168,7 +200,7 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
   which you supply. Books already price the headline matchup effect.
 - **Late news.** Mid-game injuries and inactives (announced ~90 minutes before kickoff) aren't visible until the
   next report. The `Last Gm` column helps: a backup who logged 4 attempts after averaging 24 may have been hurt.
-- **Cross-position effects are not modelled**: a missing TE or RB also moves WR targets; an offensive-line injury
+- **Cross-position effects are mostly not modelled**: a missing TE or RB also moves WR targets (the workload flag only shows it); a QB's first missed game is flagged on WR cards but not in the projection; an offensive-line injury
   moves everything.
 - Game script, weather, pace and snap counts aren't used; spread/total are shown for context only.
 - Early-season samples are small (3-4 games); everything is shrunk toward prior information accordingly.
@@ -176,6 +208,9 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
 - Game script only helps QBs in the data. RB and WR lines are not adjusted for it.
 - WR 11-25 are listed because they were asked for, but the defense matchup has shown no predictive value for them.
 - Depth charts come from ESPN via nflverse and can lag roster moves.
+- **Anytime TD**: not logged to the bet log or graded yet (it is a ranked list with an odds box, not a bet slip); a backup whose starter is
+  out is flagged but not re-scored, so his chance is understated; players with no games this season and under a full last season (rookies
+  who have not played) are left out; the TE model is the weakest (log-loss gain t=-1.8); no opponent adjustment (it hurt out of sample).
 
 ## Roadmap
 
@@ -183,16 +218,20 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
 2. Cross-position redistribution (TE/RB out -> WR targets) and route-participation data for receivers.
 3. A better WR model: targets per route run, and air yards share.
 4. Re-tune `DEPTH_BONUS` with true weekly depth charts and out-of-sample splits.
+5. Log and grade anytime-TD bets (needs TDs added to `results.json` and a Yes/No bet type in the logger); re-score a backup's chance when his starter is out.
 
 ## Layout
 
 ```
-props/        config.py (all constants) | data.py | slate.py | defense.py | gamescript.py | snaps.py | volume.py | touches.py | availability.py
+props/        config.py (all constants) | data.py | slate.py | defense.py | gamescript.py | snaps.py | volume.py | touches.py | qbout.py | availability.py
+              td.py (Sheet 3: anytime TD) + td_model.json (fitted by research/fit_td_model.py)
               elite.py (Sheet 1) | backups.py (Sheet 2) | workbook.py | site.py | results.py | calibration.py (+ calibration.json) | pipeline.py | __main__.py
 .github/      workflows/refresh.yml (scheduled rebuild + Pages deploy)
 research/     backtest_elite.py | backtest_backups.py | calibrate_injuries.py | calibrate_distribution.py | review_bets.py
               experiment_game_context.py | experiment_defense_rating.py | experiment_snaps.py
               experiment_opportunity_model.py | experiment_forward_signals.py | experiment_touches.py
+              experiment_qb_out.py | experiment_fresh_absence.py | experiment_role_features.py | walkforward_pool.py (shared walk-forward helper)
+              experiment_td.py | td_data.py | fit_td_model.py (anytime-TD probability from play-by-play)
 tests/        pytest suite
 output/       generated workbooks
 ```
