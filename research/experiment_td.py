@@ -22,6 +22,7 @@ import pandas as pd
 
 import td_data as T
 import walkforward_pool as W
+from props import td as TD
 
 YEARS = (2021, 2022, 2023, 2024, 2025)
 TEST = (2022, 2023, 2024, 2025)
@@ -61,14 +62,8 @@ def logloss(p, y):
 
 
 def design(d: pd.DataFrame, tt_mean: float) -> pd.DataFrame:
-    f = pd.DataFrame(index=d.index)
-    r = np.clip(d.pg_td, 0.02, 0.98)
-    f["lt"] = np.log(r / (1 - r))
-    f["lr"] = np.log(d.pg_rush_xtd + 0.02)
-    f["lg"] = np.log(d.pg_tgt_xtd + 0.02)
-    f["ltt"] = np.log(d.tt.fillna(tt_mean) / tt_mean)
-    f["lv"] = np.log(d.pg_touch + 1)
-    f["lo"] = np.log(d.opp_rel.fillna(1.0))
+    f = TD.design(d, tt_mean)                                          # shared with production (props/td.py)
+    f["lo"] = np.log(d.opp_rel.fillna(1.0))                            # research-only: the opponent check
     return f
 
 

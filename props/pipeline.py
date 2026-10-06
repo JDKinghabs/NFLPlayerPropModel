@@ -13,6 +13,7 @@ from .defense import defense_ratings
 from .elite import elite_table
 from .results import build_results
 from .slate import ET, select_slate
+from .td import TD_GROUPS, load_model, td_table
 
 
 @dataclass
@@ -24,6 +25,7 @@ class Result:
     backups: dict
     meta: dict = field(default_factory=dict)
     results: dict = field(default_factory=dict)
+    td: dict = field(default_factory=dict)          # anytime-TD tab: {"RB"/"WR"/"TE": ranked DataFrame}
 
 
 def build(season: int | None = None, weeks: list[int] | None = None, refresh: bool = False,
@@ -51,6 +53,18 @@ def build(season: int | None = None, weeks: list[int] | None = None, refresh: bo
         backups[k] = backup_table(cat, d["stats"], d["prev_stats"], ratings[k], slate, d["depth"],
                                   d["roster"], pout, injuries_names=d["injuries"], snaps=d.get("snaps"))
 
+    td, td_note, model = {k: pd.DataFrame() for k in TD_GROUPS}, "", load_model()
+    if not slate.empty and model is not None:
+        # a starter who is out means his backup's role is bigger than his season average says (see the Backups tab)
+        bk = {k: set(b.player_id[b.p_out >= 0.5]) for k, b in backups.items() if b is not None and len(b)}
+        try:
+            td = td_table(d["stats"], d["prev_stats"], d.get("pbp"), d.get("prev_pbp"), d["roster"], slate, pout, model,
+                          backup_ids=bk.get("RB", set()) | bk.get("WR", set()))
+        except Exception as e:                       # an optional tab must never take the whole site down
+            td_note = f"The anytime-TD tab could not be built this time ({type(e).__name__})."
+    if model is not None and not any(len(v) for v in td.values()) and not td_note:
+        td_note = "No anytime-TD rows for this slate yet (play-by-play data not available)."
+
     inj_notes = {}
     for w in slate_weeks:
         _, stale, rep = injury_week_for(d["injuries"], int(w))
@@ -62,5 +76,6 @@ def build(season: int | None = None, weeks: list[int] | None = None, refresh: bo
         "data_through_week": int(d["stats"].week.max()) if len(d["stats"]) else 0,
         "injury_reports": inj_notes,
         "top_n": {k: (top_n or cat.elite_n) for k, cat in C.CATS.items()}, "weak_n": weak_n, "model": C.MODEL_VERSION,
+        "td_note": td_note, "td_model": (model or {}).get("version", ""),
     }
-    return Result(season, slate, ratings, elite, backups, meta, build_results(d["stats"], season))
+    return Result(season, slate, ratings, elite, backups, meta, build_results(d["stats"], season), td)

@@ -99,6 +99,36 @@ def test_new_model_features_are_visible_and_stamped():
     assert "Model check" in html and "review_bets.py" in html                               # feedback loop is wired into the page
 
 
+def td_frame(n=30):
+    rows = []
+    for i in range(n):
+        rows.append(dict(player_id=f"p{i}", name="A <b>Bold</b> RB" if i == 0 else f"Runner {i}", team="AAA", week=4, rank=i + 1,
+                         opp_txt="@BBB", kick_txt="Sun 10/4 1p", tt=27.5 if i else float("nan"), xtd=0.5, p_td=0.6 - i * 0.01,
+                         fair="-150" if i == 0 else "-100", inj="Q (28%)" if i == 1 else "", role_up=(i == 2)))
+    return pd.DataFrame(rows)
+
+
+def test_anytime_td_tab_is_ranked_escaped_capped_and_has_an_odds_box():
+    res = result()
+    res.td = {"RB": td_frame(), "WR": pd.DataFrame(), "TE": pd.DataFrame()}
+    html = render(res)
+    assert 'data-p="p4"' in html and 'id="p4"' in html and ">Anytime TD<" in html
+    assert "A &lt;b&gt;Bold&lt;/b&gt; RB" in html and "<b>Bold</b>" not in html
+    assert 'data-p="0.6000"' in html and "fair -150" in html and "60%" in html
+    assert html.count('class="tdrow"') == 30 and "Show all 30" in html          # 25 up front, the rest folded away
+    assert "no line yet" in html and "team total 27.5" in html
+    assert 'class="tdodds"' in html and "Q (28%)" in html and "Starter out: role may be bigger" in html
+    assert "No players for this slate yet." in html                              # the empty WR / TE columns
+    assert not re.search(r"\bnan\b", html, re.I)
+    assert "/^p[1234]$/" in html                                                  # the new tab is reachable by link
+
+
+def test_anytime_td_tab_shows_why_it_is_empty():
+    res = result()
+    res.meta["td_note"] = "The anytime-TD tab could not be built this time (ValueError)."
+    assert "could not be built this time (ValueError)" in render(res)
+
+
 def test_qb_flag_chip_note_and_frozen_fields_on_wr_cards():
     import json
     from html import unescape
