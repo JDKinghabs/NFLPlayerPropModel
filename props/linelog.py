@@ -36,11 +36,11 @@ def norm_name(s: str) -> str:
 def projection_rows(res) -> list[dict]:
     """Flatten the model's projections (elite, backup and anytime-TD tabs) to one row per player/week/market."""
     out = []
-    for sheet, tables in (("elite", res.elite), ("backup", res.backups)):
+    for sheet, tables, col in (("elite", res.elite, "proj"), ("backup", res.backups, "proj_exp")):   # backups: expected, p_out-weighted
         for cat, df in tables.items():
             for r in df.itertuples():
                 out.append(dict(market=cat, sheet=sheet, pid=r.player_id, name=r.name, team=r.team, week=int(r.week),
-                                proj=round(float(r.proj), 2)))
+                                proj=round(float(getattr(r, col)), 2)))
     for grp, df in res.td.items():
         for r in df.itertuples():
             out.append(dict(market="TD", sheet="td", pid=r.player_id, name=r.name, team=r.team, week=int(r.week),

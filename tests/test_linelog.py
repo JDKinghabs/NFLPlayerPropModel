@@ -47,9 +47,11 @@ def test_write_log_roundtrip(tmp_path):
     cols = ["player_id", "name", "team", "week", "proj"]
     elite = pd.DataFrame([["p1", "Patrick Mahomes", "KC", 5, 270.0]], columns=cols)
     td = pd.DataFrame([["p2", "Kyren Williams", "LA", 5, 0.5]], columns=["player_id", "name", "team", "week", "p_td"])
-    res = type("R", (), dict(season=2026, elite={"QB": elite}, backups={}, td={"RB": td},
+    bk = pd.DataFrame([["p3", "Tank Bigsby", "JAX", 5, 41.0, 60.0]],
+                      columns=["player_id", "name", "team", "week", "proj_exp", "proj_if_out"])
+    res = type("R", (), dict(season=2026, elite={"QB": elite}, backups={"RB": bk}, td={"RB": td},
                              meta=dict(generated=pd.Timestamp("2026-10-07 18:00", tz="UTC"), weeks=[5])))
     path = L.write_log(res, tmp_path, [dict(market="TD", player="Kyren Williams", side="Yes", price=-130, point=None)])
     d = json.loads(path.read_text())
-    assert path.parent.name == "2026" and len(d["projections"]) == 2
+    assert path.parent.name == "2026" and len(d["projections"]) == 3 and d["projections"][1]["proj"] == 41.0
     assert d["lines"][0]["pid"] == "p2" and d["lines"][0]["proj"] == 0.5
