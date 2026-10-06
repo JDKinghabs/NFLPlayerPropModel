@@ -2,6 +2,9 @@ name: Refresh site
 
 # Rebuilds the workbook + website from fresh nflverse data and publishes it to GitHub Pages.
 # One-time setup: repo Settings -> Pages -> Source: "GitHub Actions".
+#
+# Each build also saves a frozen snapshot of its pre-game predictions to history/ and commits it back to the branch it ran on
+# (see props/history.py).  That step is last and non-blocking: if it fails, the site has already been built and still publishes.
 
 on:
   schedule:
@@ -26,8 +29,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write          # only so the last step can commit history/; this job needs nothing else
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0       # full history so the archive commit can rebase onto a newer branch tip
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -35,10 +42,26 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pytest -q
       - name: Build workbook + site (this week's remaining games plus next week)
-        run: python -m props --lookahead 2 --site site --out site/NFL_Props_latest.xlsx
+        run: python -m props --lookahead 2 --site site --out site/NFL_Props_latest.xlsx --history history
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
+      - name: Commit the prediction archive
+        continue-on-error: true            # never block publishing the site over the archive
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          if [ -z "$(git status --porcelain history)" ]; then echo "No new snapshot to archive."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add history
+          git commit -m "Archive predictions $(date -u +%Y-%m-%dT%H:%MZ) [skip ci]"
+          for attempt in 1 2 3; do
+            if git pull --rebase origin "$BRANCH" && git push origin "HEAD:$BRANCH"; then exit 0; fi
+            sleep 5
+          done
+          echo "::warning::Could not push the prediction archive (is the branch protected?). The site still published."
+          exit 1
 
   deploy:
     needs: build

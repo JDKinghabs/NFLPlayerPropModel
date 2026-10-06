@@ -1,4 +1,4 @@
-"""CLI:  python -m props [--weeks 4 5] [--season 2026] [--out file.xlsx] [--refresh]"""
+"""CLI:  python -m props [--weeks 4 5] [--season 2026] [--out file.xlsx] [--refresh] [--history DIR]"""
 from __future__ import annotations
 
 import argparse
@@ -17,6 +17,8 @@ def main(argv=None):
     ap.add_argument("--lookahead", type=int, default=1,
                     help="with no --weeks: include this many weeks starting at the earliest open one")
     ap.add_argument("--site", type=Path, help="also write a static website (index.html + xlsx) to this folder")
+    ap.add_argument("--history", type=Path,
+                    help="also save this build's pre-game predictions as a frozen snapshot in this folder (skipped if unchanged)")
     ap.add_argument("--out", type=Path, help="output .xlsx (default: output/NFL_Props_<season>_Wk<weeks>.xlsx)")
     ap.add_argument("--refresh", action="store_true", help="re-download all data now")
     ap.add_argument("--include-started", action="store_true",
@@ -44,6 +46,11 @@ def main(argv=None):
             print(f"  NOTE: no injury report for week {w} yet - using week {rep} (marked stale)")
         elif rep is None:
             print(f"  NOTE: no usable injury report for week {w} yet - no injury flags for those games")
+    if a.history:
+        from .history import write_snapshot
+        snap = write_snapshot(res, a.history)
+        print(f"Archived this build's predictions to {snap}" if snap else
+              "No new snapshot (predictions unchanged since the last one, or nothing left before kickoff)")
     if a.site:
         from .site import write_site
         write_site(res, a.site, out)
