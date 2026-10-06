@@ -5,7 +5,6 @@ name: Log sportsbook lines
 
 on:
   schedule:
-    - cron: "30 22 * * 5"     # Fri, shortly after the injury-report refresh
     - cron: "30 16 * * 0"     # Sunday, shortly after the noon refresh
   workflow_dispatch:
 

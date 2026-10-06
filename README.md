@@ -30,8 +30,8 @@ Run it again Wednesday, Friday and Sunday morning: injury news is the main thing
 the model's projections in `line_log/<season>/<build time>.json`, so edge vs the market can be scored once results are in. Each
 file holds `projections` (what the model said) and `lines` (book, side, line, American odds; `pid`/`proj` filled when the player
 matches by name). Source is [The Odds API](https://the-odds-api.com): set `ODDS_API_KEY`; without it the log is skipped.
-`.github/workflows/line-log.yml` runs it Fri/Sun and commits to the `data/line-log` branch (needs the `ODDS_API_KEY` repo secret).
-Cost: one credit per market per game, so four markets x ~16 games is ~64 credits per run, ~550 a month at two runs a week: slightly over the free 500 tier (drop a market or the Friday run to fit).
+`.github/workflows/line-log.yml` runs it Sundays and commits to the `data/line-log` branch (needs the `ODDS_API_KEY` repo secret).
+Cost: one credit per market per game, so four markets x ~16 games is ~64 credits per run, ~275 a month at one run a week, inside the free 500 tier.
 
 ## Live website
 
