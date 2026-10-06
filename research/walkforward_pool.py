@@ -157,3 +157,57 @@ def ols(X: np.ndarray, y: np.ndarray, cluster=None):
 
 def rmse(e) -> float:
     return float(np.sqrt(np.mean(np.asarray(e, dtype=float) ** 2)))
+
+
+P_OUT_SKILL = {"Out": 1.0, "Doubtful": 1.0, "Questionable": C.P_OUT_QUESTIONABLE}
+
+
+def absences(season: int, kind: str, min_games: int = 2) -> pd.DataFrame:
+    """Key teammates who are (or may be) missing, one row per (team, week, player), weeks 4+.
+
+    kind "targets": WR/TE/RB holding at least the WR starter share of the team's targets in the games they played
+         "rb":      RB/FB holding at least the RB starter share of the team's RB carries
+    (the same thresholds and share definition props/backups.py uses to decide who counts as a starter).
+    Columns: share, status / p_out (pre-game injury report; Out/Doubtful 1.0, Questionable at the calibrated rate),
+    streak (consecutive earlier team games he did not play; 0 = he played last time), ex_out (no volume in the game).
+    """
+    s = stats(season)
+    if kind == "rb":
+        s = s[s.position.isin(["RB", "FB"])]
+        vol, floor, cands = "carries", C.CATS["RB"].starter_min_share, {"RB", "FB"}
+    else:
+        vol, floor, cands = "targets", C.CATS["WR"].starter_min_share, {"WR", "TE", "RB", "FB"}
+    s = s.assign(v=s[vol].fillna(0))
+    inj = injuries(season)
+    status = {}
+    if len(inj):
+        for r in inj[["gsis_id", "week", "report_status"]].dropna().itertuples():
+            status[(r.gsis_id, r.week)] = r.report_status
+    rows = []
+    for team, sub in s.groupby("team"):
+        mat = sub.pivot_table(index="week", columns="player_id", values="v", aggfunc="sum").fillna(0.0)
+        tot = mat.sum(axis=1)
+        pos = sub.groupby("player_id").position.last()
+        for w in (x for x in mat.index if x >= 4):
+            hist = mat[mat.index < w]
+            for pid in mat.columns:
+                if pos.get(pid) not in cands:
+                    continue
+                act = hist.index[hist[pid] > 0]
+                if len(act) < min_games:
+                    continue
+                share = float(hist.loc[act, pid].sum() / tot.loc[act].sum())
+                if share < floor:
+                    continue
+                st = status.get((pid, w), "")
+                p_out, ex_out = P_OUT_SKILL.get(st, 0.0), bool(mat.loc[w, pid] <= 0)
+                if p_out == 0 and not ex_out:
+                    continue
+                streak = 0
+                for pw in sorted(hist.index, reverse=True):
+                    if hist.loc[pw, pid] > 0:
+                        break
+                    streak += 1
+                rows.append(dict(season=season, team=team, week=w, pid=pid, share=share, status=st, p_out=p_out,
+                                 streak=streak, ex_out=ex_out))
+    return pd.DataFrame(rows)
