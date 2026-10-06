@@ -1,0 +1,37 @@
+name: Log sportsbook lines
+
+# Records prop lines next to the model's projections on the `data/line-log` branch (never on main).
+# Needs the repo secret ODDS_API_KEY (The Odds API). Without it the step is skipped.
+
+on:
+  schedule:
+    - cron: "30 22 * * 3,5"   # Wed + Fri, shortly after the injury-report refresh
+    - cron: "30 16 * * 0"     # Sunday, shortly after the noon refresh
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  log:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Build and record lines
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: python -m props --lookahead 2 --out "$RUNNER_TEMP/tmp.xlsx" --line-log "$RUNNER_TEMP/line_log"
+      - name: Commit to data/line-log
+        run: |
+          [ -d "$RUNNER_TEMP/line_log" ] || { echo "nothing logged"; exit 0; }
+          git fetch origin data/line-log || true
+          git checkout -B data/line-log "$(git rev-parse --verify -q origin/data/line-log || echo HEAD)"
+          mkdir -p line_log && cp -r "$RUNNER_TEMP/line_log/." line_log/
+          git config user.name "github-actions[bot]"; git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add line_log && git commit -m "Line log $(date -u +%FT%TZ)" && git push origin data/line-log

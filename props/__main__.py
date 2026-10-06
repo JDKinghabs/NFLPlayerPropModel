@@ -17,6 +17,8 @@ def main(argv=None):
     ap.add_argument("--lookahead", type=int, default=1,
                     help="with no --weeks: include this many weeks starting at the earliest open one")
     ap.add_argument("--site", type=Path, help="also write a static website (index.html + xlsx) to this folder")
+    ap.add_argument("--line-log", type=Path, metavar="DIR",
+                    help="also record sportsbook prop lines next to the projections in DIR (needs ODDS_API_KEY)")
     ap.add_argument("--out", type=Path, help="output .xlsx (default: output/NFL_Props_<season>_Wk<weeks>.xlsx)")
     ap.add_argument("--refresh", action="store_true", help="re-download all data now")
     ap.add_argument("--include-started", action="store_true",
@@ -44,6 +46,11 @@ def main(argv=None):
             print(f"  NOTE: no injury report for week {w} yet - using week {rep} (marked stale)")
         elif rep is None:
             print(f"  NOTE: no usable injury report for week {w} yet - no injury flags for those games")
+    if a.line_log:
+        from .linelog import log_lines
+        p = log_lines(res, a.line_log)
+        if p:
+            print(f"Wrote line log {p}")
     if a.site:
         from .site import write_site
         write_site(res, a.site, out)

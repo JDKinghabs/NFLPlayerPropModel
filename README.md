@@ -24,6 +24,15 @@ pytest                             # 70 tests
 Output goes to `output/NFL_Props_<season>_Wk<weeks>.xlsx`. Only games that have **not kicked off** are shown.
 Run it again Wednesday, Friday and Sunday morning: injury news is the main thing that moves Sheet 2.
 
+## Line log
+
+`python -m props --line-log line_log` also records the books' prop lines (QB pass yds, RB rush yds, WR rec yds, anytime TD) next to
+the model's projections in `line_log/<season>/<build time>.json`, so edge vs the market can be scored once results are in. Each
+file holds `projections` (what the model said) and `lines` (book, side, line, American odds; `pid`/`proj` filled when the player
+matches by name). Source is [The Odds API](https://the-odds-api.com): set `ODDS_API_KEY`; without it the log is skipped.
+`.github/workflows/line-log.yml` runs it Wed/Fri/Sun and commits to the `data/line-log` branch (needs the `ODDS_API_KEY` repo secret).
+Cost: each game's odds call uses one credit per market, so four markets x ~16 games is ~64 credits per run.
+
 ## Live website
 
 A GitHub Action (`.github/workflows/refresh.yml`) rebuilds the workbook and a static site from fresh nflverse data
