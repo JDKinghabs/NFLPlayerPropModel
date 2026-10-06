@@ -23,7 +23,7 @@ HEADER_ROW, FIRST_ROW = 6, 7
 
 def _elite_cols(cat):
     lab = TOUCH_LABEL[cat.key]
-    return [
+    cols = [
         ("Player", "name", 20, None), ("Tm", "team", 5, None), ("Opp", "opp_txt", 6, None),
         ("Kickoff", "kick_txt", 15, None), ("Spr / Tot", "spr_tot", 12, None),
         ("Inj", "inj", 13, None), ("Rk", "rank", 4, "0"), ("G", "games", 4, "0"),
@@ -32,6 +32,9 @@ def _elite_cols(cat):
         ("Opp Rk", "opp_rank", 7, "0"), ("Opp Alw/G", "opp_alw", 9, "0.0"),
         ("vs Lg", "vs_lg", 7, '+0%;-0%;0%'), ("Proj", "proj", 7, "0"),
     ]
+    if cat.key in C.QB_OUT_EFFECT:                       # QB may miss his first game (props/qbout.py); not in Proj
+        cols.insert(6, ("QB status", "q_txt", 18, None))
+    return cols
 
 
 def _backup_cols(cat):
@@ -97,7 +100,7 @@ def _write_block(ws, c0, cat, df, cols, proj_key, established_flag=False):
             cell.border = Border(bottom=THIN)
             if fmt:
                 cell.number_format = fmt
-            cell.alignment = Alignment(horizontal="left" if i == 0 or key in ("starters_out", "inj", "spr_tot")
+            cell.alignment = Alignment(horizontal="left" if i == 0 or key in ("starters_out", "inj", "spr_tot", "q_txt")
                                        else "center", vertical="center")
             if key == "opp_rank" and val is not None:
                 if val <= 3:

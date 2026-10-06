@@ -16,7 +16,7 @@ pip install -r requirements.txt
 python -m props                    # earliest week with games still to play
 python -m props --weeks 5          # a specific week (or several: --weeks 4 5)
 python -m props --refresh          # force a re-download (data is cached for 3h in data/raw/)
-pytest                             # 51 tests
+pytest                             # 57 tests
 ```
 
 Output goes to `output/NFL_Props_<season>_Wk<weeks>.xlsx`. Only games that have **not kicked off** are shown.
@@ -83,6 +83,13 @@ lines are **not** included, so you enter them by hand. An odds feed is the obvio
      size of the bump (RB touches +19% over 36 games, WR targets +6% over 241). It is **information only**: it did not improve
      out-of-sample accuracy, so it is not folded into the expected number or the yards projection.
    - The forecast is frozen into each saved bet and graded against actual touches (`results.json` carries them) in the Model check.
+6. **QB flag** (WR cards): when the team's starting QB (most attempts this season) may miss the game *and played the previous one*
+   (injury report Out / Doubtful / Questionable, or on IR), the card shows a chip, the historical size of the effect and an
+   "about N yds if he sits" figure. In a QB's first missed game, 2022-25, top WRs ran about -22% in receiving yards and -12% in
+   targets vs baseline (t=-2.6 over 60 team-games, negative in all four seasons). A longer absence is not flagged because the season
+   averages already contain it. It is **information only** (the error gain is small because only about 25 team-games a season
+   qualify), so it is not in Proj. About 15-18 first missed games a season have no report designation (benchings, mid-game exits)
+   and cannot be flagged in advance.
 
 ### Sheet 2: backups
 
@@ -171,7 +178,7 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
   which you supply. Books already price the headline matchup effect.
 - **Late news.** Mid-game injuries and inactives (announced ~90 minutes before kickoff) aren't visible until the
   next report. The `Last Gm` column helps: a backup who logged 4 attempts after averaging 24 may have been hurt.
-- **Cross-position effects are not modelled**: a missing TE or RB also moves WR targets; an offensive-line injury
+- **Cross-position effects are mostly not modelled**: a missing TE or RB also moves WR targets (the workload flag only shows it); a QB's first missed game is flagged on WR cards but not in the projection; an offensive-line injury
   moves everything.
 - Game script, weather, pace and snap counts aren't used; spread/total are shown for context only.
 - Early-season samples are small (3-4 games); everything is shrunk toward prior information accordingly.
@@ -190,7 +197,7 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
 ## Layout
 
 ```
-props/        config.py (all constants) | data.py | slate.py | defense.py | gamescript.py | snaps.py | volume.py | touches.py | availability.py
+props/        config.py (all constants) | data.py | slate.py | defense.py | gamescript.py | snaps.py | volume.py | touches.py | qbout.py | availability.py
               elite.py (Sheet 1) | backups.py (Sheet 2) | workbook.py | site.py | results.py | calibration.py (+ calibration.json) | pipeline.py | __main__.py
 .github/      workflows/refresh.yml (scheduled rebuild + Pages deploy)
 research/     backtest_elite.py | backtest_backups.py | calibrate_injuries.py | calibrate_distribution.py | review_bets.py

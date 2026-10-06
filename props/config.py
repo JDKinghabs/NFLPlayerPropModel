@@ -67,6 +67,13 @@ TOUCH_FLAG_MIN = 0.05          # flag a workload bump when teammates likely to m
 # in those games; `n` = games.  Shown as a flag only: it did not improve out-of-sample accuracy.
 TOUCH_WORKLOAD = {"RB": {"slope": 0.55, "bump": 0.19, "n": 36}, "WR": {"slope": 0.45, "bump": 0.06, "n": 241}}
 
+# ---- QB-out flag (props/qbout.py; evidence in research/experiment_qb_out.py) ------------------------------------------
+# A starting QB's FIRST missed game (he played the team's previous game; injury report Out / Doubtful / Questionable), 2022-25:
+# average change vs the baseline for top-25 WRs over `n` team-games (yards t=-2.6, negative in all four seasons; 95% interval
+# about -39% to -5%).  Longer absences show nothing: the season averages already contain them.  Large but rare, and the
+# out-of-sample error gain is small (-0.4% RMSE), so it is a FLAG with the historical size and not part of the projection.
+QB_OUT_EFFECT = {"WR": {"yards": -0.22, "targets": -0.12, "receptions": -0.12, "n": 60}}   # [tuned]
+
 # ---- Availability -----------------------------------------------------------
 # Same-week designations (final injury report for the game).  [calibrated] on 2023-25 rotation
 # players (avg >= 6 touches/targets/attempts per game): Out and Doubtful essentially never play.

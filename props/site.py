@@ -389,6 +389,24 @@ def _touch_block(snap: dict, cat) -> str:
             + (f'<p class="tnote">{escape(note)}</p>' if note else ""))
 
 
+def _qb_chip(snap: dict) -> str:
+    if not snap.get("q_flag"):
+        return ""
+    cls = "out" if (snap.get("q_p") or 0) >= 0.99 else "q"
+    return f'<span class="chip {cls}">QB: {escape(snap["q_txt"])}</span>'
+
+
+def _qb_note(snap: dict, cat) -> str:
+    """QB-out flag: the receiver's starting QB may miss his first game.  Information only, not in the projection."""
+    e = C.QB_OUT_EFFECT.get(cat.key)
+    if not snap.get("q_flag") or not e:
+        return ""
+    sits = "is out" if (snap.get("q_p") or 0) >= 0.99 else "sits"
+    return (f'<p class="tnote">QB flag: {escape(snap["q_txt"])}. In a starting QB\'s first missed game ({e["n"]} team-games, 2022-25) '
+            f'top WRs ran about {e["yards"]:+.0%} in receiving yards and {e["targets"]:+.0%} in targets vs baseline. '
+            f'About {snap["q_if"]:.0f} yds if he {sits}. Shown for information only; it is not in the projection.</p>')
+
+
 def _snap_attr(d: dict) -> str:
     return escape(json.dumps({k: _py(v) for k, v in d.items()}, separators=(",", ":")), quote=True)
 
@@ -417,18 +435,19 @@ def _elite_card(r, cat, ctx) -> str:
                 beta=round(float(r.get("beta", C.MATCHUP_BETA)), 2), t_label=TOUCH_LABEL[cat.key],
                 t_exp=_r(r.get("t_exp"), 2), t_base=_r(r.get("t_base"), 2), t_cur=_r(r.get("t_cur"), 2), t_l3=_r(r.get("t_l3"), 2),
                 t_fvol=_r(r.get("t_fvol"), 3), t_vac=_r(r.get("t_vac"), 3), t_flag=bool(r.get("t_flag", False)),
-                t_if=_r(r.get("t_if"), 2), t_out=r.get("t_out", "") or "")
+                t_if=_r(r.get("t_if"), 2), t_out=r.get("t_out", "") or "",
+                q_flag=bool(r.get("q_flag", False)), q_txt=r.get("q_txt", "") or "", q_p=_r(r.get("q_p"), 3), q_if=_r(r.get("q_if"), 1))
     return (
         f'<article class="card" data-snap="{_snap_attr(snap)}">'
         f'<div class="top"><div><span class="name">{escape(r["name"])}</span><span class="tm">{escape(r["team"])}</span></div>'
         f'<div class="proj"><b>{_n(r["proj"])}</b><small>proj yds</small></div></div>'
         f'<div class="game">{escape(_opp(r))} &middot; {escape(r["kick_txt"])}'
         f'{" &middot; " + escape(r["spr_tot"]) if r["spr_tot"] else ""}</div>'
-        f'<div class="chips">{_rank_chip(r["opp_rank"], r["vs_lg"])}{_script_chip(snap)}{_tier_chip(snap)}{_inj_chip(r["inj"])}</div>'
+        f'<div class="chips">{_rank_chip(r["opp_rank"], r["vs_lg"])}{_script_chip(snap)}{_tier_chip(snap)}{_inj_chip(r["inj"])}{_qb_chip(snap)}</div>'
         f'<dl class="stats"><div><dt>Season</dt><dd>{_n(r["total"])} (#{int(r["rank"])})</dd></div>'
         f'<div><dt>Per game</dt><dd>{_n(r["ypg"], 1)}</dd></div><div><dt>Last 3</dt><dd>{_n(r["l3"], 1)}</dd></div>'
         f'<div><dt>Games</dt><dd>{int(r["games"])}</dd></div></dl>'
-        f'{_touch_block(snap, cat)}{LINE_BOX}{LOG_FORM}</article>')
+        f'{_touch_block(snap, cat)}{_qb_note(snap, cat)}{LINE_BOX}{LOG_FORM}</article>')
 
 
 def _backup_card(r, cat, ctx) -> str:

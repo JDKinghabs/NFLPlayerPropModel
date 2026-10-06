@@ -99,6 +99,24 @@ def test_new_model_features_are_visible_and_stamped():
     assert "Model check" in html and "review_bets.py" in html                               # feedback loop is wired into the page
 
 
+def test_qb_flag_chip_note_and_frozen_fields_on_wr_cards():
+    import json
+    from html import unescape
+    res = result()
+    wr = res.elite["RB"].assign(player_id="00-4", name="Receiver", t_label="Tgt", q_flag=True, q_txt="Starter QB Q (60%)",
+                                q_p=0.6, q_if=62.4)
+    res.elite["WR"] = wr
+    html = render(res)
+    assert 'chip q">QB: Starter QB Q (60%)' in html
+    assert "QB flag: Starter QB Q (60%)" in html and "about -22% in receiving yards" in html
+    assert "About 62 yds if he sits" in html and "it is not in the projection" in html
+    snaps = [json.loads(unescape(m)) for m in re.findall(r'data-snap="([^"]+)"', html)]
+    w = next(x for x in snaps if x["pid"] == "00-4")
+    assert w["q_flag"] is True and w["q_p"] == 0.6 and w["q_if"] == 62.4
+    q = next(x for x in snaps if x["pid"] == "00-1")
+    assert q["q_flag"] is False and "QB flag" not in html.split('data-snap="')[1]       # unflagged cards stay clean
+
+
 def test_touches_outlook_block_and_frozen_fields():
     import json
     from html import unescape
