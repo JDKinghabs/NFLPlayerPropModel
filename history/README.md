@@ -8,3 +8,7 @@ can never contain hindsight. The **latest** snapshot a game appears in is the la
 the one to grade against what happened. A snapshot identical to the previous one is not written again.
 
 The commit history is the audit trail: a prediction cannot be changed after the game without that showing up in git.
+
+## Grading
+
+`python -m props.scorecard --history history --season 2026` grades the latest snapshot of every finished game (see `props/scorecard.py`).
