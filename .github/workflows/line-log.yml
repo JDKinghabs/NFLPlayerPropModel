@@ -5,7 +5,7 @@ name: Log sportsbook lines
 
 on:
   schedule:
-    - cron: "30 22 * * 3,5"   # Wed + Fri, shortly after the injury-report refresh
+    - cron: "30 22 * * 5"     # Fri, shortly after the injury-report refresh
     - cron: "30 16 * * 0"     # Sunday, shortly after the noon refresh
   workflow_dispatch:
 
@@ -26,7 +26,7 @@ jobs:
       - name: Build and record lines
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
-        run: python -m props --lookahead 2 --out "$RUNNER_TEMP/tmp.xlsx" --line-log "$RUNNER_TEMP/line_log"
+        run: python -m props --lookahead 1 --out "$RUNNER_TEMP/tmp.xlsx" --line-log "$RUNNER_TEMP/line_log"
       - name: Commit to data/line-log
         run: |
           [ -d "$RUNNER_TEMP/line_log" ] || { echo "nothing logged"; exit 0; }
