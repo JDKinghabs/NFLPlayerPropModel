@@ -18,7 +18,7 @@ pip install -r requirements.txt
 python -m props                    # earliest week with games still to play
 python -m props --weeks 5          # a specific week (or several: --weeks 4 5)
 python -m props --refresh          # force a re-download (data is cached for 3h in data/raw/)
-pytest                             # 70 tests
+pytest                             # 77 tests
 ```
 
 Output goes to `output/NFL_Props_<season>_Wk<weeks>.xlsx`. Only games that have **not kicked off** are shown.
@@ -42,6 +42,22 @@ Source: "GitHub Actions"**. The site is then at `https://<owner>.github.io/NFLPl
 
 Build it locally with `python -m props --lookahead 2 --site site` and open `site/index.html`.
 
+### Prediction archive (`history/`)
+
+The site is rebuilt from scratch each time, so on its own it remembers nothing: once a game is played, nothing records what the model
+said before kickoff. So every refresh also runs `python -m props --history history`, which saves a frozen snapshot of **every**
+pre-game prediction (anytime-TD probabilities, Sheet 1 and Sheet 2 projections, QB flags) to `history/<season>/<UTC build time>.json`
+(about 100 KB), and the workflow commits it back to the branch it ran on.
+
+- **No hindsight, by construction:** a snapshot only holds games that had not kicked off when it was built, and any row whose kickoff
+  is not strictly after the build time (or has none) is dropped. The latest snapshot a game appears in is the last thing the model said
+  before kickoff, which is what a scorecard should grade.
+- **Unchanged snapshots are not rewritten**, so a quiet day adds no commit.
+- **It can never block the site:** the commit is the last step of the build job and is `continue-on-error`; if the push fails (say the
+  branch becomes protected) you get a warning and the site still publishes. Only the `build` job has write access (`contents: write`).
+- The commit message ends in `[skip ci]` and the workflow only runs on changes to `props/**`, so it cannot loop.
+- Run it yourself with `--history some_folder`; without the flag nothing is saved.
+
 ### Bet log ("My bets" tab)
 
 Enter the book line on a card and the page shows the model's chance of going Over, with a lean (Over at 55%+, Under at 45%
@@ -50,7 +66,7 @@ if hindsight can't leak in, so:
 
 - **The snapshot is frozen at save time**: projection, matchup rank, injury status, the starters ruled out, the line, the
   lean and the time the page's data was built. Nothing is ever recomputed.
-- **Results are a separate file** (`results.json`, rebuilt daily from nflverse). It only grades bets and never touches a snapshot.
+- **Results are a separate file** (`results.json`, rebuilt daily from nflverse). It only grades bets and never touches a snapshot. It also records TDs scored (`td`: rushing + receiving, per RB / WR / TE with a stat line), which the scorecard grades the anytime-TD probabilities against.
 - **Bets lock at kickoff**: no adding or deleting after the game starts. Only games not yet kicked off are on the page.
 - A bet with a team-final but no stat line for the player is **void** (check your book if he was active). A line equal to the result is a push.
 - The log lives in the browser (localStorage), so it is private to that device. **Export / Import** moves it between devices.
@@ -227,15 +243,16 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
 2. Cross-position redistribution (TE/RB out -> WR targets) and route-participation data for receivers.
 3. A better WR model: targets per route run, and air yards share.
 4. Re-tune `DEPTH_BONUS` with true weekly depth charts and out-of-sample splits.
-5. Log and grade anytime-TD bets (needs TDs added to `results.json` and a Yes/No bet type in the logger); re-score a backup's chance when his starter is out.
+5. Log and grade anytime-TD bets (`results.json` now carries TDs; still needs a Yes/No bet type in the logger); re-score a backup's chance when his starter is out.
 
 ## Layout
 
 ```
 props/        config.py (all constants) | data.py | slate.py | defense.py | gamescript.py | snaps.py | volume.py | touches.py | qbout.py | availability.py
-              td.py (Sheet 3: anytime TD) + td_model.json (fitted by research/fit_td_model.py)
+              td.py (Sheet 3: anytime TD) + td_model.json (fitted by research/fit_td_model.py) | history.py (frozen prediction snapshots)
               elite.py (Sheet 1) | backups.py (Sheet 2) | workbook.py | site.py | results.py | calibration.py (+ calibration.json) | pipeline.py | __main__.py
-.github/      workflows/refresh.yml (scheduled rebuild + Pages deploy)
+.github/      workflows/refresh.yml (scheduled rebuild + Pages deploy + prediction archive commit)
+history/      frozen pre-game predictions, written by the workflow (see history/README.md)
 research/     backtest_elite.py | backtest_backups.py | calibrate_injuries.py | calibrate_distribution.py | review_bets.py
               experiment_game_context.py | experiment_defense_rating.py | experiment_snaps.py
               experiment_opportunity_model.py | experiment_forward_signals.py | experiment_touches.py

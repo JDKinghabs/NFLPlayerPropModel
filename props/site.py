@@ -644,7 +644,7 @@ def write_site(res, out_dir: Path, xlsx_path: Path | None = None) -> Path:
     if has_xlsx and Path(xlsx_path).resolve() != (out_dir / XLSX_NAME).resolve():   # may already be in place
         shutil.copyfile(xlsx_path, out_dir / XLSX_NAME)
     (out_dir / "index.html").write_text(render(res, XLSX_NAME if has_xlsx else None), encoding="utf-8")
-    (out_dir / "results.json").write_text(json.dumps(res.results or {"season": res.season, "final": [], "y": {}},
+    (out_dir / "results.json").write_text(json.dumps(res.results or {"season": res.season, "final": [], "y": {}, "t": {}, "td": {}},
                                                        separators=(",", ":")), encoding="utf-8")
     (out_dir / ".nojekyll").write_text("")
     return out_dir / "index.html"
