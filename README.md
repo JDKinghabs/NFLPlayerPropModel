@@ -57,7 +57,7 @@ if hindsight can't leak in, so:
 
 - **The snapshot is frozen at save time**: projection, matchup rank, injury status, the starters ruled out, the line, the
   lean and the time the page's data was built. Nothing is ever recomputed.
-- **Results are a separate file** (`results.json`, rebuilt daily from nflverse). It only grades bets and never touches a snapshot.
+- **Results are a separate file** (`results.json`, rebuilt daily from nflverse). It only grades bets and never touches a snapshot. It also records TDs scored (`td`: rushing + receiving, per RB / WR / TE with a stat line), which the scorecard grades the anytime-TD probabilities against.
 - **Bets lock at kickoff**: no adding or deleting after the game starts. Only games not yet kicked off are on the page.
 - A bet with a team-final but no stat line for the player is **void** (check your book if he was active). A line equal to the result is a push.
 - The log lives in the browser (localStorage), so it is private to that device. **Export / Import** moves it between devices.
@@ -234,7 +234,7 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
 2. Cross-position redistribution (TE/RB out -> WR targets) and route-participation data for receivers.
 3. A better WR model: targets per route run, and air yards share.
 4. Re-tune `DEPTH_BONUS` with true weekly depth charts and out-of-sample splits.
-5. Log and grade anytime-TD bets (needs TDs added to `results.json` and a Yes/No bet type in the logger); re-score a backup's chance when his starter is out.
+5. Log and grade anytime-TD bets (`results.json` now carries TDs; still needs a Yes/No bet type in the logger); re-score a backup's chance when his starter is out.
 
 ## Layout
 
