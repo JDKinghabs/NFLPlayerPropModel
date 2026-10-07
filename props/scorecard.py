@@ -46,19 +46,17 @@ def _played(stats: pd.DataFrame, season: int) -> dict:
     s = stats[stats.season == season]
     final = {(int(w), t) for w, t in zip(s.week, s.team)}
     lines = {(int(r.week), r.player_id): r for r in s.itertuples()}
-    return {"lines": lines, "final": final, "stats": s}
+    return {"lines": lines, "final": final, "stats": s, "td": {}}
 
 
-def _td_actual(r) -> int:
-    return int((np.nan_to_num(r.rushing_tds) + np.nan_to_num(r.receiving_tds)) > 0)
 
 
 def grade_td(rows: list, g: dict) -> dict:
     graded = []
     for r in rows:
-        line = g["lines"].get((r["week"], r["pid"]))
-        if line is not None and r["p_td"] is not None:
-            graded.append((r["pos"], float(r["p_td"]), _td_actual(line)))
+        scored = g["td"].get((r["week"], r["pid"]))          # None = no stat line = did not play = void
+        if scored is not None and r["p_td"] is not None:
+            graded.append((r["pos"], float(r["p_td"]), int(scored > 0)))
     if not graded:
         return {"n": 0}
 
@@ -141,6 +139,7 @@ def scorecard(root, stats: pd.DataFrame, season: int) -> dict:
     final = {tuple(k.split("|")[1:]) for k in build_results(stats, season)["final"]}      # (week, team) as strings
     final = {(int(w), t) for w, t in final}
     g["final"] = final
+    g["td"] = {(int(k.split("|")[1]), k.split("|")[2]): v for k, v in build_results(stats, season)["td"].items()}
     keep = lambda rows: [r for r in rows if (r["week"], r["team"]) in final]              # game is over
     td, elite, backup = (keep(latest[k]) for k in ("td", "elite", "backup"))
     return {"season": season, "weeks_graded": sorted({r["week"] for r in td + elite + backup}),
