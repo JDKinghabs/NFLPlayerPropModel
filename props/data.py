@@ -11,6 +11,7 @@ from .snaps import prepare_snaps
 from .td import read_pbp
 
 BASE = "https://github.com/nflverse/nflverse-data/releases/download"
+SCHEDULE_URL = "https://raw.githubusercontent.com/nflverse/nfldata/master/data/games.csv"   # the schedules release asset now 404s
 CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 
 STAT_COLS = [
@@ -48,11 +49,12 @@ def cached(path: str, live: bool, max_age_hours: float = 3.0, refresh: bool = Fa
     finished-season files are fetched once.
     """
     dest = CACHE_DIR / Path(path).name
+    url = SCHEDULE_URL if path == "schedules/games.csv" else f"{BASE}/{path}"
     stale = refresh or not dest.exists() or (
         live and time.time() - dest.stat().st_mtime > max_age_hours * 3600)
     if stale:
         try:
-            _fetch(f"{BASE}/{path}", dest)
+            _fetch(url, dest)
         except requests.RequestException:
             if dest.exists():          # fall back to an older copy rather than fail
                 return dest
