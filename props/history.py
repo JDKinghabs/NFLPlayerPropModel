@@ -1,7 +1,8 @@
 """Frozen archive of every pre-game prediction the site shows.
 
 `python -m props --history history` saves one JSON snapshot per refresh, history/<season>/<UTC build time>.json, holding every
-anytime-TD probability, yardage projection (Sheet 1 and Sheet 2) and QB flag as the model had them at that moment.  Why:
+anytime-TD probability, yardage projection (every top-N player and Sheet 2) and QB flag as the model had them at that moment,
+plus the Top plays board's picks with the price they were graded against.  Why:
 the website is rebuilt from scratch each time, so without this nothing remembers what the model said before a game, and
 nothing can be graded against what happened.
 
@@ -75,11 +76,13 @@ def snapshot(res) -> dict:
     m = res.meta
     built = _iso(m["generated"])
     td = [r for g in TD_GROUPS for r in _rows((getattr(res, "td", None) or {}).get(g), TD_FIELDS, built)]
-    elite = [r for k in C.CATS for r in _rows(res.elite.get(k), ELITE_FIELDS, built, k)]
+    elite = [r for k in C.CATS for r in _rows((getattr(res, "elite_all", None) or res.elite).get(k), ELITE_FIELDS, built, k)]
+    picks = [{k: v for k, v in p.items() if k not in ("game",)} for p in getattr(res, "picks", None) or []
+             if p.get("kickoff") and p["kickoff"] > built]
     backup = [r for k in C.CATS for r in _rows(res.backups.get(k), BACKUP_FIELDS, built, k)]
     body = {"version": VERSION, "season": int(res.season), "weeks": [int(w) for w in m.get("weeks", [])],
             "model": {"yardage": m.get("model", C.MODEL_VERSION), "td": m.get("td_model", "")},
-            "td": td, "elite": elite, "backup": backup}
+            "td": td, "elite": elite, "backup": backup, "picks": picks}
     digest = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:16]
     return {**body, "built": built, "hash": digest, "code_sha": os.environ.get("GITHUB_SHA", "")}
 

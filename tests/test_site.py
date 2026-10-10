@@ -120,7 +120,7 @@ def test_anytime_td_tab_is_ranked_escaped_capped_and_has_an_odds_box():
     assert 'class="tdodds"' in html and "Q (28%)" in html and "Starter out: role may be bigger" in html
     assert "No players for this slate yet." in html                              # the empty WR / TE columns
     assert not re.search(r"\bnan\b", html, re.I)
-    assert "/^p[1234]$/" in html                                                  # the new tab is reachable by link
+    assert "/^p[0-4]$/" in html                                                   # every tab is reachable by link
 
 
 def test_anytime_td_tab_shows_why_it_is_empty():
@@ -160,3 +160,83 @@ def test_touches_outlook_block_and_frozen_fields():
     assert rb["t_exp"] == 20.0 and rb["t_flag"] is True and rb["t_if"] == 27.4 and rb["t_label"] == "Tch"
     qb = next(x for x in snaps if x["cat"] == "QB" and x["sheet"] == "elite")
     assert qb["t_exp"] == 34.5 and qb["t_fvol"] == 1.08 and qb["t_flag"] is False
+
+
+def pick(**kw):
+    base = dict(kind="yards", market="QB", label="Pass yds", pid="00-1", name="A <b>Bold</b> Player", team="AAA", opp_txt="@BBB",
+                kick_txt="Sun 10/4 1p", kickoff="2026-10-04T17:00:00Z", week=4, game="g1", inj="", side="Under", line=244.5,
+                price=-112, p=0.71, implied=0.5283, edge=0.1817, ev=0.34, fair="-245", proj=210.0, grade="A",
+                reasons=["proj 210 vs line 244.5", "season 260/g (hot start, regresses)"], book="DraftKings",
+                updated="2026-10-04T15:55:00Z", rank=1)
+    return {**base, **kw}
+
+
+def board_result(picks=None, watch=None, book_lines=262):
+    res = result()
+    res.picks = [pick(), pick(kind="td", market="TD", label="Anytime TD", pid="00-3", name="Runner", side="Yes", line=None,
+                          price=135, p=0.48, implied=0.4255, edge=0.0545, ev=0.13, fair="+108", grade="B", rank=2,
+                          reasons=["0.68 exp TD/g", "11 touches/g"])] if picks is None else picks
+    res.watch = [dict(kind="yards", market="WR", label="Rec yds", pid="w9", name="Watch Wr", team="CCC", opp_txt="DDD",
+                      kick_txt="Mon 10/5 8:15p", week=4, fair_line=58.5, over_at=54.5, under_at=61.5, proj=67.0,
+                      reasons=["proj 67"]),
+                 dict(kind="td", market="TD", label="Anytime TD", pid="t9", name="Watch Td", team="CCC", opp_txt="DDD",
+                      kick_txt="Mon 10/5 8:15p", week=4, p=0.55, fair="-122", yes_at=150, reasons=["0.80 exp TD/g"])] if watch is None else watch
+    res.meta["odds"] = {"pulled": "2026-10-04T15:55:00Z", "book_lines": book_lines, "remaining": 300, "unmatched": 0, "note": ""}
+    return res
+
+
+def test_top_plays_board_is_the_first_tab_and_states_side_number_price_and_why():
+    html = render(board_result())
+    assert 'data-p="p0" aria-selected="true">Top plays' in html and '<div class="panel" id="p1" hidden>' in html
+    assert "DraftKings lines &middot; Sun 11:55a" in html                         # header pill, Eastern time
+    assert "2 plays &middot; 1 A &middot; 1 B" in html
+    assert 'class="grade A"' in html and 'class="grade B"' in html
+    assert 'class="pside under">UNDER 244.5<' in html and 'class="pside yes">YES<' in html
+    assert ">-112<" in html and ">+135<" in html and "edge +18.2 pts" in html and "+0.34u" in html
+    assert "proj 210 vs line 244.5 &middot; season 260/g (hot start, regresses)" in html
+    assert 'data-goto="c-QB-00-1-4" data-tab="p1"' in html and 'data-goto="t-TD-00-3-4" data-tab="p4"' in html
+    assert "A &lt;b&gt;Bold&lt;/b&gt; Player" in html and "<b>Bold</b>" not in html
+    assert "Over &le; 54.5" in html and "Under &ge; 61.5" in html and "Yes at +150 or better" in html
+    assert "How picks are graded" in html and "5 points for RB/WR yards" in html
+    assert len(re.findall(r'data-snap="', html)) == 3                             # picks never add bet-log snapshots
+    assert not re.search(r"\bnan\b", html, re.I)
+
+
+def test_board_explains_itself_when_empty():
+    assert "No play clears the bar" in render(board_result(picks=[], watch=[]))
+    html = render(board_result(picks=[], watch=[], book_lines=0))
+    assert "No DraftKings lines yet" in html and 'class="pill warn">No DraftKings lines yet' in html
+
+
+def test_cards_prefill_the_book_line_and_carry_the_pick_badge():
+    import json
+    from html import unescape
+    res = board_result()
+    res.lines = {("00-1", "QB"): [dict(kickoff="2026-10-04T17:00:00Z", teams=["AAA", "BBB"], point=244.5, over=-112, under=-108)],
+                 ("00-3", "TD"): [dict(kickoff="2026-10-04T17:00:00Z", teams=["AAA", "BBB"], yes=135)]}
+    res.td = {"RB": td_frame(3).assign(player_id=["00-3", "p1", "p2"], kickoff=pd.Timestamp("2026-10-04 13:00", tz="America/New_York")),
+              "WR": pd.DataFrame(), "TE": pd.DataFrame()}
+    html = render(res)
+    snaps = [json.loads(unescape(m)) for m in re.findall(r'data-snap="([^"]+)"', html)]
+    qb = next(x for x in snaps if x["pid"] == "00-1")
+    assert qb["dk_line"] == 244.5 and qb["dk_over"] == -112 and qb["dk_under"] == -108
+    assert "DraftKings 244.5 &middot; O -112 / U -108" in html and "Top play A &middot; Under 244.5" in html
+    assert 'data-dk="+135"' in html and "edge +" in html and "Top play B &middot; Yes" in html
+    assert "snap.dk_line" in html and "getAttribute('data-dk')" in html             # the page fills the boxes in
+
+
+def test_dark_only_with_no_white_flash_on_load():
+    html = render(result())
+    assert '<meta name="color-scheme" content="dark">' in html and "prefers-color-scheme" not in html
+    assert "--bg:#0f1115" in html and "html{background:var(--bg)" in html
+    assert "--pos:#22c55e" in html and "--neg:#f43f5e" in html
+
+
+def test_yardage_tab_lists_every_opponent_with_a_weak_defense_filter():
+    res = result()
+    weak = res.elite["QB"].iloc[0]
+    res.elite_all = {"QB": pd.DataFrame([weak, weak.copy().rename(None)]).assign(player_id=["00-1", "00-9"], opp_rank=[2, 20]),
+                     "RB": res.elite["RB"], "WR": pd.DataFrame()}
+    html = render(res)
+    assert 'id="c-QB-00-1-4" data-weak="1"' in html and 'id="c-QB-00-9-4" data-weak="0"' in html
+    assert 'id="weakonly"' in html and ".weakonly #p1 .card[data-weak=\"0\"]{display:none}" in html

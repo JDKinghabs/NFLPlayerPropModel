@@ -3,9 +3,10 @@ name: Log sportsbook lines
 # Records prop lines next to the model's projections on the `data/line-log` branch (never on main).
 # Needs the repo secret ODDS_API_KEY (The Odds API). Without it the step is skipped.
 
+# No schedule any more: the refresh workflow now pulls the same markets from every US book itself (props/odds.py) and saves them
+# under history/odds/, so a second Sunday pull would spend the free plan's credits twice.  Run this by hand only if you want the
+# old line_log format on the data/line-log branch (each run costs about 60 credits).
 on:
-  schedule:
-    - cron: "30 16 * * 0"     # Sunday, shortly after the noon refresh
   workflow_dispatch:
 
 permissions:

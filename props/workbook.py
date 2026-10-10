@@ -178,12 +178,71 @@ def _sub(res) -> str:
     return "  |  ".join(parts)
 
 
+PICK_COLS = [("#", "rank", 4, "0"), ("Grade", "grade", 6, None), ("Player", "name", 22, None), ("Tm", "team", 5, None),
+             ("Opp", "opp_txt", 6, None), ("Kickoff", "kick_txt", 15, None), ("Market", "label", 11, None), ("Side", "side", 7, None),
+             ("Line", "line", 7, "0.0"), ("Price", "price", 7, "+0;-0"), ("Model", "p", 7, "0%"), ("Book", "implied", 7, "0%"),
+             ("Edge", "edge", 7, "+0.0%;-0.0%"), ("EV / 1u", "ev", 8, "+0.00;-0.00"), ("Why", "why", 70, None)]
+WATCH_COLS = [("Player", "name", 22, None), ("Tm", "team", 5, None), ("Opp", "opp_txt", 6, None), ("Kickoff", "kick_txt", 15, None),
+              ("Market", "label", 11, None), ("Fair", "fair_txt", 9, None), ("Over if line <=", "over_at", 10, "0.0"),
+              ("Under if line >=", "under_at", 10, "0.0"), ("Yes at or better", "yes_at", 10, "+0;-0"), ("Why", "why", 60, None)]
+GREEN, RED = "1E8E3E", "C62828"
+
+
+def _table(ws, row: int, cols, rows: list) -> int:
+    """Header + rows starting at `row`; returns the next free row."""
+    for i, (head, _, width, _) in enumerate(cols, start=1):
+        c = ws.cell(row, i, head)
+        c.font, c.fill = Font(name=FONT, bold=True, size=9, color="FFFFFF"), PatternFill("solid", fgColor="1D2129")
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.column_dimensions[get_column_letter(i)].width = max(ws.column_dimensions[get_column_letter(i)].width or 0, width)
+    for r, d in enumerate(rows, start=row + 1):
+        for i, (_, key, _, fmt) in enumerate(cols, start=1):
+            v = d.get(key)
+            c = ws.cell(r, i, None if isinstance(v, float) and pd.isna(v) else v)
+            c.font, c.border = Font(name=FONT, size=10), Border(bottom=THIN)
+            c.alignment = Alignment(horizontal="left" if key in ("name", "why") else "center", vertical="center")
+            if fmt:
+                c.number_format = fmt
+            if key == "grade":
+                c.font = Font(name=FONT, size=10, bold=True, color="FFFFFF" if v == "A" else GREEN)
+                if v == "A":
+                    c.fill = PatternFill("solid", fgColor=GREEN)
+            if key == "side":
+                c.font = Font(name=FONT, size=10, bold=True, color=RED if v == "Under" else GREEN)
+    return row + 1 + len(rows)
+
+
+def _top_plays_sheet(ws, res) -> None:
+    from .site import BOOK
+    picks = [{**p, "why": "; ".join(p["reasons"])} for p in getattr(res, "picks", None) or []]
+    watch = [{**w, "why": "; ".join(w.get("reasons", [])),
+              "fair_txt": f'{w["fair_line"]:g}' if w["kind"] == "yards" else w.get("fair")} for w in getattr(res, "watch", None) or []]
+    om = res.meta.get("odds") or {}
+    lines = (f"{BOOK} lines pulled {om['pulled']}" if om.get("book_lines") and om.get("pulled")
+             else f"No {BOOK} lines yet: they are pulled on game days. Until then use the watchlist numbers.")
+    _header(ws, f"Top plays: the model against {BOOK}", _sub(res),
+            ["Model = the model's chance of the side; Book = the chance the price implies (vig included); Edge = the difference, so a "
+             "positive edge is a positive-EV bet. Grade B needs about one calibration error of edge, A about 1.6x (see the README).",
+             lines + ". Prices move: check the number before betting. For research and entertainment only."])
+    nxt = _table(ws, HEADER_ROW, PICK_COLS, picks)
+    if not picks:
+        ws.cell(nxt, 1, "No play clears the bar right now.").font = Font(name=FONT, italic=True, color="7F7F7F", size=10)
+        nxt += 1
+    if watch:
+        t = ws.cell(nxt + 1, 1, f"Watchlist: no {BOOK} line for these games yet. Bet only at these numbers or better (-110 for yardage).")
+        t.font = Font(name=FONT, bold=True, size=11)
+        _table(ws, nxt + 2, WATCH_COLS, watch)
+
+
 def write_workbook(res, path: Path) -> None:
     wb = Workbook()
 
+    # ---------------- Top plays ----------------
+    _top_plays_sheet(wb.active, res)
+    wb.active.title = "Top plays"
+
     # ---------------- Sheet 1 ----------------
-    ws = wb.active
-    ws.title = "1 Elite vs Weak D"
+    ws = wb.create_sheet("1 Elite vs Weak D")
     _header(
         ws, "Elite performers vs defenses that give up the category", _sub(res),
         [f"Elite = top {pool_text(res.meta['top_n'])} by {res.season} yards (passing, rushing, receiving). "

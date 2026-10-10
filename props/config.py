@@ -74,6 +74,26 @@ TOUCH_WORKLOAD = {"RB": {"slope": 0.55, "bump": 0.19, "n": 36}, "WR": {"slope": 
 # out-of-sample error gain is small (-0.4% RMSE), so it is a FLAG with the historical size and not part of the projection.
 QB_OUT_EFFECT = {"WR": {"yards": -0.22, "targets": -0.12, "receptions": -0.12, "n": 60}}   # [tuned]
 
+# ---- Sportsbook lines (props/odds.py) ------------------------------------------------------------------------------
+ODDS_BOOK = "draftkings"       # picks use this book's prices; every US book's lines are still saved for research
+ODDS_WINDOW_HOURS = 18         # auto pull = games kicking off within this many hours: Sunday 7am ET run -> Sunday's games,
+                               # Thursday / Monday morning runs -> TNF / MNF.  About 64 credits a week on the free plan (~500/month)
+ODDS_REPULL_HOURS = 6          # ...that were not already pulled in the last few hours
+ODDS_MIN_REMAINING = 40        # stop pulling when the plan has fewer credits left than this
+
+# ---- Top plays (props/picks.py) ------------------------------------------------------------------------------------
+# Minimum edge = model probability minus the probability the DraftKings price implies, for grade (A, B).  [assumed]: about
+# 1x and 1.6x each market's calibration error (QB P(over) up to 10 points off, RB/WR 2-5, anytime TD about 2.7).  The
+# scorecard will show whether they are too loose or too tight; change them here.
+PICK_EDGE = {"QB": (0.10, 0.07), "RB": (0.08, 0.05), "WR": (0.08, 0.05), "TD": (0.06, 0.035)}
+PICK_MAX = 15                  # most picks on the board (a thin week shows fewer; it is never padded)
+PICK_PER_GAME = 3              # outcomes in one game move together: at most this many picks per game
+PICK_MAX_P_OUT = 0.5           # no pick on a player more likely out than in
+PICK_TD_MIN_P = 0.20           # [assumed] no anytime-TD pick below this model chance: on a longshot a 2-3 point calibration error is a
+                               # huge relative error (e.g. a fullback at 15% vs a +4000 price looked like a 12-point edge)
+WATCH_MAX = 10                 # watchlist rows (players whose game has no DraftKings line yet)
+BREAK_EVEN = 100 / 210         # probability a -110 price implies (52.4%)
+
 # ---- Availability -----------------------------------------------------------
 # Same-week designations (final injury report for the game).  [calibrated] on 2023-25 rotation
 # players (avg >= 6 touches/targets/attempts per game): Out and Doubtful essentially never play.
