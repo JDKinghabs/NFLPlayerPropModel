@@ -1,10 +1,12 @@
 # NFL Player Prop Model
 
-Builds a three-sheet Excel workbook for single-game prop research on **QB passing yards, RB rushing
-yards and WR receiving yards** (sheets 1-2) and **anytime touchdowns for RB, WR and TE** (sheet 3).
+Builds a website and an Excel workbook for single-game prop research on **QB passing yards, RB rushing
+yards and WR receiving yards** (sheets 1-2) and **anytime touchdowns for RB, WR and TE** (sheet 3). When DraftKings
+lines are available it also turns them into a short graded list of **Top plays** (first tab and first sheet).
 
 | Sheet | Question it answers |
 |---|---|
+| **Top plays** | Which 0-15 bets clear the bar at DraftKings' current price this week? Graded A/B, with side, price, model vs book probability, edge, EV and the reason. Plus a watchlist of target numbers for spots with no line yet. |
 | **1 Elite vs Weak D** | Which top-10 performers at each position face a defense that gives up that category? |
 | **2 Backups** | Which backups inherit volume because a starter is out (or might be)? |
 | **3 Anytime TD** | Which RBs, WRs and TEs are most likely to score a touchdown? Ranked within each week, with the fair American price. |
@@ -18,20 +20,60 @@ pip install -r requirements.txt
 python -m props                    # earliest week with games still to play
 python -m props --weeks 5          # a specific week (or several: --weeks 4 5)
 python -m props --refresh          # force a re-download (data is cached for 3h in data/raw/)
-pytest                             # 77 tests
+pytest                             # 105 tests
 ```
 
 Output goes to `output/NFL_Props_<season>_Wk<weeks>.xlsx`. Only games that have **not kicked off** are shown.
 Run it again Wednesday, Friday and Sunday morning: injury news is the main thing that moves Sheet 2.
 
-## Line log
+## Top plays (DraftKings lines)
+
+The research tabs list every flagged player; **Top plays** says what to bet. It needs real prices, so each refresh pulls
+DraftKings prop lines from [The Odds API](https://the-odds-api.com) (`props/odds.py`): QB pass yards, RB rush yards, WR receiving
+yards and anytime TD. Set the key as the repository secret **`ODDS_API_KEY`** (Settings -> Secrets and variables -> Actions); never
+put it in code. Without a key, nothing is pulled and the board shows the watchlist only.
+
+- **Credits.** The free plan has 500 credits a month and each game costs one credit per market (four). The workflow only pulls games
+  kicking off within 18 hours that were not pulled in the last 6: the Thursday 7am ET run gets TNF, Sunday 7am ET gets Sunday's games,
+  Monday 7am ET gets MNF. About 64 credits a week. It stops if fewer than 40 credits remain. For an extra pull (say Friday), run the
+  workflow by hand with `pull_odds = force` (every game left this week, ~60 credits).
+- **Saved.** Each pull is written to `history/odds/<season>/<UTC time>.json` (every US book, not just DraftKings) and committed by the
+  archive step, so it doubles as a line log for closing-line work later. Builds reuse the latest pull for games not yet started and
+  the header pill says when it was taken ("DraftKings lines · Sun 7:02a").
+- **Matching.** Team names map to nflverse abbreviations; players match by normalised full name, then by first initial + last name
+  when that is unique within the game's two teams (96% of DraftKings rows on a real pull; the rest are mostly D/ST TD lines).
+
+**How a pick is made** (`props/picks.py`, thresholds in `config.py`, tagged `[assumed]` until the scorecard re-tunes them):
+
+1. **Candidates**: every top-10 QB / top-15 RB / top-25 WR on the slate against *any* defense (the pool the Over/Under calibration
+   was fit on), and every anytime-TD row. Backups get no picks (their probabilities were 10-20 points off). Players at 50%+ to miss
+   are skipped; Questionable ones are tagged.
+2. **Model probability** of each side at the DraftKings line: the calibrated P(over) for yards, P(TD) for touchdowns. The book's
+   probability is implied from the American price (vig included). **Edge** = model - book; **EV** is per 1 unit staked.
+3. **Grade** by edge, scaled to how far off the calibration has been for that market:
+
+   | Market | B | A |
+   |---|---|---|
+   | QB pass yards | 7 pts | 10 pts |
+   | RB / WR yards | 5 pts | 8 pts |
+   | Anytime TD | 3.5 pts | 6 pts (and P(TD) at least 20%: longshots are where the model is least reliable) |
+
+4. **Rules**: a WR whose starting QB carries the first-missed-game flag cannot be an Over; one pick per player, three per game;
+   A before B, then by EV; at most 15. A thin week shows fewer, never padded.
+5. **Watchlist**: top spots whose game has no DraftKings line yet get a target number instead of a grade, solved from the same
+   distribution at break-even (-110) plus the B margin ("Under at 92.5 or higher", "Yes at +210 or better").
+
+Every research card is pre-filled with the DraftKings line, so its Over/Under lean shows without typing; the TD tab shows the
+DraftKings price and edge on every row.
+
+## Line log (older format)
 
 `python -m props --line-log line_log` also records the books' prop lines (QB pass yds, RB rush yds, WR rec yds, anytime TD) next to
 the model's projections in `line_log/<season>/<build time>.json`, so edge vs the market can be scored once results are in. Each
 file holds `projections` (what the model said) and `lines` (book, side, line, American odds; `pid`/`proj` filled when the player
 matches by name). Source is [The Odds API](https://the-odds-api.com): set `ODDS_API_KEY`; without it the log is skipped.
-`.github/workflows/line-log.yml` runs it Sundays and commits to the `data/line-log` branch (needs the `ODDS_API_KEY` repo secret).
-Cost: one credit per market per game, so four markets x ~16 games is ~64 credits per run, ~275 a month at one run a week, inside the free 500 tier.
+`.github/workflows/line-log.yml` commits to the `data/line-log` branch. It is now **manual only**: the refresh workflow pulls the same
+markets itself (above), and a second scheduled pull would spend the free credits twice (each run costs about 60).
 
 ## Live website
 
@@ -40,13 +82,18 @@ and publishes it to GitHub Pages: daily, plus right after the Wednesday/Friday i
 It covers this week's remaining games plus next week. Pages needs to be switched on once: **Settings -> Pages ->
 Source: "GitHub Actions"**. The site is then at `https://<owner>.github.io/NFLPlayerPropModel/` and is public.
 
-Build it locally with `python -m props --lookahead 2 --site site` and open `site/index.html`.
+Build it locally with `python -m props --lookahead 2 --site site` and serve the folder (`python -m http.server -d site`; opening
+`index.html` from disk blocks `results.json`). Add `--odds history/odds --pull-odds off` to use saved DraftKings lines without spending credits.
+
+The page is dark only (no white flash on load) and opens on **Top plays**. The other tabs keep every flagged player: **Yardage**
+(all top players; a checkbox narrows it to weak defenses), **Backups**, **Anytime TD** and **My bets**. A pick's "Open full card"
+jumps to that player's card.
 
 ### Prediction archive (`history/`)
 
 The site is rebuilt from scratch each time, so on its own it remembers nothing: once a game is played, nothing records what the model
 said before kickoff. So every refresh also runs `python -m props --history history`, which saves a frozen snapshot of **every**
-pre-game prediction (anytime-TD probabilities, Sheet 1 and Sheet 2 projections, QB flags) to `history/<season>/<UTC build time>.json`
+pre-game prediction (anytime-TD probabilities, Sheet 1 and Sheet 2 projections, QB flags, Top plays) to `history/<season>/<UTC build time>.json`
 (about 100 KB), and the workflow commits it back to the branch it ran on.
 
 - **No hindsight, by construction:** a snapshot only holds games that had not kicked off when it was built, and any row whose kickoff
@@ -89,7 +136,7 @@ position), so the page shows the projection and a wide past-cases range instead.
 Everything comes from [nflverse](https://github.com/nflverse/nflverse-data) (free, no key): weekly player
 stats, schedules (with spreads/totals), injury reports, depth charts, roster status and play-by-play (about
 19 MB per season, used only by the anytime-TD tab; if it fails to download that tab shows a note and the rest is unaffected). Sportsbook prop
-lines are **not** included, so you enter them by hand. An odds feed is the obvious next addition (see Roadmap).
+lines come from The Odds API (DraftKings, see Top plays); without a key you enter them by hand.
 
 ## How it works
 
@@ -221,8 +268,9 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
 
 ## Known limits
 
-- **No market data.** The model finds *candidate* spots; whether a spot is mispriced depends on the posted line,
-  which you supply. Books already price the headline matchup effect.
+- **Pick thresholds are not yet validated against real lines.** The grades rest on the model's calibration error, not on a record
+  of beating DraftKings; the saved pulls and the scorecard are what will re-tune them. Lines are a snapshot from the last pull, so
+  check the price before betting. Free-plan credits allow roughly one pull per game window.
 - **Late news.** Mid-game injuries and inactives (announced ~90 minutes before kickoff) aren't visible until the
   next report. The `Last Gm` column helps: a backup who logged 4 attempts after averaging 24 may have been hurt.
 - **Cross-position effects are mostly not modelled**: a missing TE or RB also moves WR targets (the workload flag only shows it); a QB's first missed game is flagged on WR cards but not in the projection; an offensive-line injury
@@ -239,7 +287,7 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
 
 ## Roadmap
 
-1. Pull prop lines from an odds API, then track closing-line value, the only honest test of an edge.
+1. Grade Top plays against results and closing lines (from the saved pulls), then re-tune `PICK_EDGE`.
 2. Cross-position redistribution (TE/RB out -> WR targets) and route-participation data for receivers.
 3. A better WR model: targets per route run, and air yards share.
 4. Re-tune `DEPTH_BONUS` with true weekly depth charts and out-of-sample splits.
@@ -250,9 +298,10 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
 ```
 props/        config.py (all constants) | data.py | slate.py | defense.py | gamescript.py | snaps.py | volume.py | touches.py | qbout.py | availability.py
               td.py (Sheet 3: anytime TD) + td_model.json (fitted by research/fit_td_model.py) | history.py (frozen prediction snapshots)
+              odds.py (DraftKings lines: pull, save, match) | picks.py (Top plays: edges, grades, watchlist) | scorecard.py | linelog.py
               elite.py (Sheet 1) | backups.py (Sheet 2) | workbook.py | site.py | results.py | calibration.py (+ calibration.json) | pipeline.py | __main__.py
-.github/      workflows/refresh.yml (scheduled rebuild + Pages deploy + prediction archive commit)
-history/      frozen pre-game predictions, written by the workflow (see history/README.md)
+.github/      workflows/refresh.yml (scheduled rebuild + DraftKings pull + Pages deploy + archive commit) | line-log.yml (manual)
+history/      frozen pre-game predictions and odds pulls (history/odds/), written by the workflow (see history/README.md)
 research/     backtest_elite.py | backtest_backups.py | calibrate_injuries.py | calibrate_distribution.py | review_bets.py
               experiment_game_context.py | experiment_defense_rating.py | experiment_snaps.py
               experiment_opportunity_model.py | experiment_forward_signals.py | experiment_touches.py

@@ -188,7 +188,10 @@ def td_table(stats, prev_stats, pbp, prev_pbp, roster, slate, pout_by_week, mode
 
     r = roster.sort_values("week").drop_duplicates("gsis_id", keep="last") if "week" in roster else roster.drop_duplicates("gsis_id")
     r = r.assign(grp=r.position.replace({"FB": "RB"}))
-    r = r[r.grp.isin(TD_GROUPS) & r.team.isin(set(slate.team)) & r.status.isin(AVAILABLE_ROSTER) & r.gsis_id.notna()]
+    # fullbacks are left out: shrinkage toward the RB average inflates their usage early in the season, so the model gave one
+    # a 15% chance against a 2.4% DraftKings price (Oct 2026); their role is too unlike a running back's to trust
+    r = r[r.grp.isin(TD_GROUPS) & (r.position != "FB") & r.team.isin(set(slate.team)) & r.status.isin(AVAILABLE_ROSTER)
+          & r.gsis_id.notna()]
     if r.empty:
         return empty
     # one stand-in "next game" per player (week 99), so his features use only games already played

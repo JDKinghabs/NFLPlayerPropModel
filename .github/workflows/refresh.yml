@@ -5,6 +5,9 @@ name: Refresh site
 #
 # Each build also saves a frozen snapshot of its pre-game predictions to history/ and commits it back to the branch it ran on
 # (see props/history.py).  That step is last and non-blocking: if it fails, the site has already been built and still publishes.
+# Sportsbook lines (props/odds.py) are pulled here, only when games are close: the 7am ET run on Sunday gets Sunday's games,
+# the Thursday / Monday morning runs get TNF / MNF (about 64 credits a week).  Run it by hand with pull_odds=force for an
+# extra pull.  Pulls are saved under history/odds/ and committed by the same archive step.
 
 on:
   schedule:
@@ -12,6 +15,12 @@ on:
     - cron: "0 22 * * 3,5"    # Wed + Fri ~6pm ET, right after the injury reports are published
     - cron: "0 16 * * 0"      # Sunday ~noon ET, after inactives are announced
   workflow_dispatch:
+    inputs:
+      pull_odds:
+        description: "Sportsbook lines: auto = only games within 18h, force = every game left this week (~60 credits), off"
+        type: choice
+        options: [auto, force, "off"]
+        default: auto
   push:
     branches: [main, claude/zealous-tesla-k5x28i]
     paths: ["props/**", "requirements.txt", ".github/workflows/refresh.yml"]
@@ -42,7 +51,12 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pytest -q
       - name: Build workbook + site (this week's remaining games plus next week)
-        run: python -m props --lookahead 2 --site site --out site/NFL_Props_latest.xlsx --history history
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}          # The Odds API; without it the Top plays board shows target numbers
+          PULL_ODDS: ${{ inputs.pull_odds || 'auto' }}
+        run: >-
+          python -m props --lookahead 2 --site site --out site/NFL_Props_latest.xlsx --history history
+          --odds history/odds --pull-odds "$PULL_ODDS"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

@@ -19,6 +19,10 @@ def main(argv=None):
     ap.add_argument("--site", type=Path, help="also write a static website (index.html + xlsx) to this folder")
     ap.add_argument("--history", type=Path,
                     help="also save this build's pre-game predictions as a frozen snapshot in this folder (skipped if unchanged)")
+    ap.add_argument("--odds", type=Path, metavar="DIR",
+                    help="sportsbook lines folder for the Top plays board (pulls need ODDS_API_KEY); without it the board shows target numbers")
+    ap.add_argument("--pull-odds", choices=["auto", "force", "off"], default="auto",
+                    help="auto: only games within a few hours (default); force: every game left this week; off: use saved lines only")
     ap.add_argument("--line-log", type=Path, metavar="DIR",
                     help="also record sportsbook prop lines next to the projections in DIR (needs ODDS_API_KEY)")
     ap.add_argument("--out", type=Path, help="output .xlsx (default: output/NFL_Props_<season>_Wk<weeks>.xlsx)")
@@ -31,7 +35,8 @@ def main(argv=None):
     a = ap.parse_args(argv)
 
     res = build(season=a.season, weeks=a.weeks, refresh=a.refresh,
-                include_started=a.include_started, lookahead=a.lookahead, top_n=a.top, weak_n=a.weak)
+                include_started=a.include_started, lookahead=a.lookahead, top_n=a.top, weak_n=a.weak,
+                odds_dir=a.odds, pull_odds=a.pull_odds if a.odds else "off")
     wk = res.meta["weeks"]
     if not wk:
         raise SystemExit("No upcoming games found for that season/weeks.")
@@ -43,6 +48,11 @@ def main(argv=None):
           f"stats through week {res.meta['data_through_week']})")
     for k in C.CATS:
         print(f"  {k}: {len(res.elite[k]):2d} elite-vs-weak-defense rows | {len(res.backups[k]):2d} backup rows")
+    om = res.meta.get("odds") or {}
+    if a.odds:
+        print(f"  Lines: {om.get('book_lines', 0)} {C.ODDS_BOOK} prices (pulled {om.get('pulled') or 'never'}; "
+              f"{om.get('unmatched', 0)} unmatched). {om.get('note', '')}".rstrip())
+    print(f"  Top plays: {len(res.picks)} ({sum(p['grade'] == 'A' for p in res.picks)} A) | watchlist {len(res.watch)}")
     for w, (rep, stale) in res.meta["injury_reports"].items():
         if stale:
             print(f"  NOTE: no injury report for week {w} yet - using week {rep} (marked stale)")
