@@ -67,10 +67,12 @@ def test_cards_carry_a_frozen_snapshot_with_kickoff_for_the_lock():
     assert b["p_out"] == 1.0 and b["proj_if_out"] == 50.0 and b["starters_out"] == "Starter OUT"
 
 
-def test_page_has_bets_tab_and_embedded_calibration_and_meta():
+def test_page_has_tracked_tab_and_embedded_calibration_and_meta():
     import json
     html = render(result())
-    assert 'data-p="p3"' in html and 'id="p3"' in html and "Bets lock at kickoff" in html
+    assert 'data-p="p3" aria-selected="false">Tracked</button>' in html and 'id="p3"' in html
+    assert "Nothing logged yet" in html                                                     # empty ledger: says so
+    assert "Log a bet" not in html and "nflprops.bets" not in html and "My bets" not in html   # the browser bet log is gone
     cal = json.loads(re.search(r'id="calib">(.*?)</script>', html, re.S).group(1))
     assert set(cal["elite"]) == {"QB", "RB", "WR"} and set(cal["backup"]) == {"QB", "RB", "WR"}
     meta = json.loads(re.search(r'id="meta">(.*?)</script>', html, re.S).group(1))
@@ -96,7 +98,6 @@ def test_new_model_features_are_visible_and_stamped():
     assert all(x["model"] == C.MODEL_VERSION for x in snaps)
     meta = json.loads(re.search(r'id="meta">(.*?)</script>', html, re.S).group(1))
     assert meta["model"] == "v2"
-    assert "Model check" in html and "review_bets.py" in html                               # feedback loop is wired into the page
 
 
 def td_frame(n=30):
@@ -242,19 +243,25 @@ def test_yardage_tab_lists_every_opponent_with_a_weak_defense_filter():
     assert 'id="weakonly"' in html and ".weakonly #p1 .card[data-weak=\"0\"]{display:none}" in html
 
 
-def test_board_shows_the_tracked_card_with_its_record():
+def test_tracked_tab_shows_the_record_what_is_working_and_each_week():
     res = board_result()
     base = dict(season=2026, week=5, team="GB", label="Rec yds", kick_txt="Sun 1p", implied=0.52, p=0.67, grade="A",
                 source_built="2026-10-11T13:25:30Z")
     res.ledger = [dict(base, rank=1, name="Won <Guy>", side="Under", line=56.5, price=-110, outcome="W", units=0.909, actual=41),
                   dict(base, rank=2, name="Lost Guy", side="Under", line=81.5, price=-112, outcome="L", units=-1.0, actual=90),
                   dict(base, rank=3, name="Later Guy", side="Yes", line=None, price=425, label="Anytime TD", grade="B",
-                       outcome=None, units=None, actual=None)]
+                       outcome=None, units=None, actual=None),
+                  dict(base, week=4, rank=1, name="Old Guy", side="Over", line=40.5, price=-110, outcome="W", units=0.909, actual=60)]
     html = render(res)
-    assert 'id="tracked"' in html and "week 5 card: 1-1 &middot; -0.09u" in html and "1 pending" in html
-    assert "Won &lt;Guy&gt;" in html and "Won +0.91u" in html and "Lost -1u" in html and "Pending" in html
-    assert "Yes at +425" in html and "actual 41" in html
-    assert 'id="tracked"' not in render(board_result())                             # nothing logged: no section
+    p3 = html[html.index('id="p3"'):html.index('class="about"')]
+    assert 'id="tracked"' in p3 and "<h3>Picks</h3>" in p3 and "<dd>2-1</dd>" in p3                 # season: both weeks
+    assert "What is working: picks" in p3 and "<td>Grade A</td><td>2-1</td>" in p3 and "<td>Under</td><td>1-1</td>" in p3
+    assert p3.index("<h3>Week 5") < p3.index("<h3>Week 4")                                           # newest week first
+    assert "Card &middot; 1-1 &middot; -0.09u" in p3 and "1 pending" in p3
+    assert "Won &lt;Guy&gt;" in p3 and "Won +0.91u" in p3 and "Lost -1u" in p3 and "Pending" in p3 and "Yes at +425" in p3
+    top = html[html.index('id="p0"'):html.index('id="p1"')]
+    assert 'class="tstrip"' in top and "picks <b>2-1" in top and 'data-tab="p3"' in top             # one line on Top plays
+    assert 'class="tstrip"' not in render(board_result())                                            # nothing logged: no strip
 
 
 def test_td_tab_shows_parlays_or_says_why_not():
@@ -274,13 +281,16 @@ def test_td_tab_shows_parlays_or_says_why_not():
     assert "No DraftKings lines yet: parlays appear" in render(board_result(book_lines=0))
 
 
-def test_tracked_section_lists_parlays_with_their_own_record():
+def test_tracked_tab_lists_parlays_with_their_own_record_and_leg_results():
     res = board_result()
     pl = dict(season=2026, week=5, kind="parlay", type="Best chance", rank=1, price=2209, p=0.059, implied=0.043,
-              hit_grade="B", value_grade="B", source_built="2026-10-11T14:12:54Z", outcome="L", units=-1.0,
+              hit_grade="B", value_grade="B", source_built="2026-10-11T14:12:54Z", outcome="L", units=-1.0, actual=[1, 0, None],
               legs=[dict(name="Olave", price=185), dict(name="Hampton", price=200), dict(name="LaPorta", price=170)])
-    res.ledger = [pl, {**pl, "type": "Best value", "rank": 3, "outcome": None, "units": None}]
+    res.ledger = [pl, {**pl, "type": "Best value", "rank": 3, "outcome": None, "units": None, "actual": None}]
     html = render(res)
-    assert "TD parlays &middot; week 5: 0-1 &middot; -1.00u" in html and "1 pending" in html
-    assert "Best chance parlay" in html and "+2209 &middot; hit B &middot; value B" in html and "Olave +185" in html
-    assert "Lost -1u" in html and "Pending" in html
+    p3 = html[html.index('id="p3"'):html.index('class="about"')]
+    assert "<h3>TD parlays</h3>" in p3 and "TD parlays &middot; 0-1 &middot; -1.00u" in p3 and "1 pending" in p3
+    assert "<td>Best chance</td><td>0-1</td>" in p3 and "What is working: parlays" in p3
+    assert "Best chance parlay" in p3 and "+2209 &middot; hit B &middot; value B" in p3
+    assert "Olave +185 &#10003;" in p3 and "Hampton +200 &#10007;" in p3 and "LaPorta +170 &middot;" in p3   # leg by leg
+    assert "Lost -1u" in p3 and "Pending" in p3

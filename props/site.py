@@ -1,6 +1,6 @@
 """Static website: one self-contained index.html (+ the xlsx for download).
 
-Tabs: Top plays (the board, props/picks.py) | Yardage | Backups | Anytime TD | My bets.  Dark only, by design.
+Tabs: Top plays (the board, props/picks.py) | Yardage | Backups | Anytime TD | Tracked (props/ledger.py).  Dark only, by design.
 """
 from __future__ import annotations
 
@@ -114,7 +114,7 @@ background:var(--surface);font-size:13px}
 .starter{font-size:12.5px;margin:0 0 8px;color:var(--text)}.starter span{color:var(--muted)}
 .tcap{font-size:10.5px;color:var(--faint);margin:4px 0 4px;text-transform:uppercase;letter-spacing:.05em}
 .tnote{font-size:12px;color:var(--muted);margin:0 0 8px}
-details.more>summary,details.logbox>summary{cursor:pointer;font-size:12.5px;font-weight:650;color:var(--info);padding:4px 0}
+details.more>summary{cursor:pointer;font-size:12.5px;font-weight:650;color:var(--info);padding:4px 0}
 details.more{margin:0 0 4px}
 .linebox{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);
 padding-top:9px;margin-top:6px}
@@ -151,32 +151,21 @@ border-radius:10px;padding:8px 10px;margin:0 0 6px}
 .tdrow .tdbox{grid-column:2/4;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:12px;color:var(--muted)}
 .tdrow .chip{margin-left:6px}
 
-/* bet log */
-details.logbox{margin-top:8px;border-top:1px solid var(--line);padding-top:6px}
-.logrow{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:6px}
-.logrow label{display:flex;flex-direction:column;font-size:11px;color:var(--muted);gap:2px}
-.logrow input{width:74px}
-.seg{display:flex}.seg button{font:inherit;font-weight:650;padding:7px 12px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--text);cursor:pointer}
-.seg button:first-child{border-radius:8px 0 0 8px}.seg button:last-child{border-radius:0 8px 8px 0;border-left:0}
-.seg button[aria-pressed=true]{background:var(--pos);color:#052e14;border-color:var(--pos)}
-.btn,.logbtn,.btools button,.del{font:inherit;font-weight:650;padding:7px 12px;border-radius:8px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--text);cursor:pointer}
-.logbtn{background:var(--pos);border-color:var(--pos);color:#052e14}
-.logmsg{font-size:12px;margin-top:6px;color:var(--muted);min-height:1em}
+/* tracked page */
 .sum{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin:0 0 12px}
 .sum div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
 .sum dt{font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}.sum dd{margin:0;font-weight:750;font-size:17px}
 .sum .pos{color:var(--pos)}.sum .neg{color:var(--neg)}
-.bet{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin:0 0 8px;display:grid;gap:3px}
-.bet .row1{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-weight:650}
-.badge{font-size:11px;font-weight:750;padding:2px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);text-transform:uppercase}
-.badge.win{background:var(--pos-bg);color:var(--pos);border-color:transparent}.badge.loss{background:var(--neg-bg);color:var(--neg);border-color:transparent}
-.badge.void,.badge.push{background:var(--warn-bg);color:var(--warn);border-color:transparent}
-.bet .small,.small{font-size:12px;color:var(--muted)}
-.mcheck{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;margin:0 0 12px}.mcheck h3{margin:0 0 4px;font-size:15px}
-.mcheck table{border-collapse:collapse;font-size:13px;margin:6px 0;width:100%}
-.mcheck th,.mcheck td{text-align:left;padding:3px 8px 3px 0;border-bottom:1px solid var(--line)}.mcheck th{color:var(--muted);font-weight:600;font-size:12px}
-.btools{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}
-.warnbox{background:var(--neg-bg);color:var(--neg);border-radius:8px;padding:8px 12px;font-size:13px;margin:0 0 12px}
+.small{font-size:12px;color:var(--muted)}
+.tgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:6px}
+.tgrid h3,.twk h3{font-size:15px;margin:0 0 8px}
+.ttable{border-collapse:collapse;font-size:13px;margin:4px 0 12px;width:100%}
+.ttable th,.ttable td{text-align:left;padding:4px 8px 4px 0;border-bottom:1px solid var(--line)}
+.ttable th{color:var(--muted);font-weight:600;font-size:12px}.ttable td.pos{color:var(--pos)}.ttable td.neg{color:var(--neg)}
+.twk{margin-top:22px}.twk h4{font-size:13px;color:var(--muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.05em}
+.tracked{scroll-margin-top:130px}
+.tstrip{margin-top:22px;padding:10px 14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;font-size:13px;color:var(--muted)}
+.tstrip b{color:var(--text)}.tstrip a{color:var(--info);font-weight:650;text-decoration:none;margin-left:6px}
 footer{color:var(--faint);font-size:12px;margin:18px 0 8px}footer a{color:var(--muted)}
 [hidden]{display:none!important}
 """
@@ -186,18 +175,12 @@ JS = r"""
 'use strict';
 var $=function(s,r){return (r||document).querySelector(s)};
 var $$=function(s,r){return Array.prototype.slice.call((r||document).querySelectorAll(s))};
-var META=JSON.parse($('#meta').textContent), CAL=null;
+var CAL=null;
 try{CAL=JSON.parse($('#calib').textContent)}catch(e){}
-var KEY='nflprops.bets.v1', LEAN_HI=0.55, LEAN_LO=0.45, memBets=[], storageOK=true;
-var CATNAME={QB:'QB passing',RB:'RB rushing',WR:'WR receiving'};
+var LEAN_HI=0.55, LEAN_LO=0.45;
 
-function readBets(){try{var v=localStorage.getItem(KEY);return v?JSON.parse(v):[]}catch(e){storageOK=false;return memBets}}
-function writeBets(a){memBets=a;try{localStorage.setItem(KEY,JSON.stringify(a))}catch(e){storageOK=false}}
 function lget(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
 function lset(k,v){try{v===''?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}
-function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-function fmtTime(iso){var d=new Date(iso);return isNaN(d)?'':d.toLocaleString([], {weekday:'short',hour:'numeric',minute:'2-digit'})}
-function fmtU(x){return (x>0?'+':'')+x.toFixed(2)+'u'}
 
 /* ---- probability of going Over (mirror of props/calibration.py) ---- */
 function cdf(p,r,x){
@@ -216,19 +199,18 @@ function rangeTxt(snap){var q=CAL&&CAL.backup&&CAL.backup[snap.cat]; if(!q) retu
 window.__props={pOver:pOver,cdf:cdf,leanOf:leanOf};
 
 /* ---- tabs ---- */
-var tabs=$$('.tab'), panels=$$('.panel'), resPromise=null, RES=undefined;
+var tabs=$$('.tab'), panels=$$('.panel');
 function show(id){
   tabs.forEach(function(t){t.setAttribute('aria-selected',t.getAttribute('data-p')===id)});
   panels.forEach(function(p){p.hidden=p.id!==id});
   try{history.replaceState(null,'','#'+id)}catch(e){}
-  if(id==='p3') renderBets();
 }
 tabs.forEach(function(t){t.addEventListener('click',function(){show(t.getAttribute('data-p'))})});
 
-/* ---- cards: line -> lean, and the bet logger ---- */
+/* ---- cards: line -> lean ---- */
 $$('article.card').forEach(function(card){
-  var snap=JSON.parse(card.getAttribute('data-snap')), inp=$('.lineinp',card), pov=$('.pov',card), msg=$('.logmsg',card);
-  var sk='line:'+[snap.sheet,snap.cat,snap.pid,snap.week].join('|'), side=null;
+  var snap=JSON.parse(card.getAttribute('data-snap')), inp=$('.lineinp',card), pov=$('.pov',card);
+  var sk='line:'+[snap.sheet,snap.cat,snap.pid,snap.week].join('|');
   function line(){var v=parseFloat(inp.value);return isNaN(v)?null:v}
   function upd(){
     if(snap.sheet==='backup'){
@@ -242,26 +224,6 @@ $$('article.card').forEach(function(card){
   }
   inp.value=lget(sk)||(snap.dk_line!=null?String(snap.dk_line):''); upd();      // the book's line, unless you typed one
   inp.addEventListener('input',function(){lset(sk,inp.value);upd()});
-  $$('.seg button',card).forEach(function(b){b.addEventListener('click',function(){
-    side=b.getAttribute('data-side');
-    $$('.seg button',card).forEach(function(o){o.setAttribute('aria-pressed',o===b)});
-  })});
-  $('.logbtn',card).addEventListener('click',function(){
-    var L=line(), odds=parseFloat($('.odds',card).value), stake=parseFloat($('.stake',card).value);
-    if(L==null) return void(msg.textContent='Enter the book line first.');
-    if(!side) return void(msg.textContent='Pick Over or Under.');
-    if(isNaN(odds)||Math.abs(odds)<100) return void(msg.textContent='Odds should look like -110 or +120.');
-    if(!(stake>0)) return void(msg.textContent='Units must be more than 0.');
-    if(Date.now()>=Date.parse(snap.kickoff)) return void(msg.textContent='This game has started. Bets lock at kickoff.');
-    var bets=readBets(), dup=bets.some(function(b){return b.pid===snap.pid&&b.week===snap.week&&b.cat===snap.cat&&b.season===snap.season&&b.side===side&&b.line===L});
-    if(dup) return void(msg.textContent='You already logged this exact bet.');
-    var p=pOver(snap.sheet,snap.cat,snap.proj,L);
-    bets.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,7), enteredAt:new Date().toISOString(), builtAt:META.built,
-      season:snap.season, week:snap.week, team:snap.team, pid:snap.pid, name:snap.name, cat:snap.cat, sheet:snap.sheet, kickoff:snap.kickoff,
-      side:side, line:L, odds:odds, stake:stake, pOver:p, lean:leanOf(p), model:snap.model||'v1', snap:snap});
-    writeBets(bets); updateCount();
-    msg.textContent=storageOK?'Saved. Open the "My bets" tab to see it. Snapshot frozen at '+fmtTime(new Date().toISOString())+'.':'Could not save: your browser is blocking storage.';
-  });
 });
 
 /* ---- anytime-TD rows: type the book's American price to see the edge over the model's probability ---- */
@@ -277,129 +239,12 @@ $$('.tdrow').forEach(function(row){
   inp.value=lget(k)||row.getAttribute('data-dk')||''; upd(); inp.addEventListener('input',function(){lset(k,inp.value);upd()});
 });
 
-/* ---- results + grading (results never touch a saved snapshot) ---- */
-function loadResults(){
-  if(resPromise) return resPromise;
-  resPromise=fetch('results.json',{cache:'no-cache'}).then(function(r){if(!r.ok) throw new Error(r.status);return r.json()})
-    .then(function(j){j._fin={};j.final.forEach(function(k){j._fin[k]=1});RES=j;return j}).catch(function(){RES=null;return null});
-  return resPromise;
-}
-function toWin(odds,stake){return stake*(odds>0?odds/100:100/Math.abs(odds))}
-function grade(b,R){
-  if(!R) return {s:'pending',note:'Results file unavailable here.'};
-  if(R.season!==b.season||!R._fin[b.season+'|'+b.week+'|'+b.team]) return {s:'pending'};
-  var a=R.y[b.season+'|'+b.week+'|'+b.pid+'|'+b.cat];
-  if(a===undefined) return {s:'void',profit:0};
-  if(a===b.line) return {s:'push',actual:a,profit:0};
-  var won=(b.side==='Over')===(a>b.line);
-  return {s:won?'win':'loss',actual:a,profit:won?toWin(b.odds,b.stake):-b.stake};
-}
-window.__props.grade=grade; window.__props.readBets=readBets;
-
-function summarize(rows){
-  var st={w:0,l:0,p:0,v:0,pend:0,profit:0,staked:0,err:0,abs:0,n:0,fw:0,fl:0,aw:0,al:0,byCat:{}};
-  rows.forEach(function(x){
-    var g=x.g, b=x.b;
-    if(g.s==='pending'){st.pend++;return}
-    if(g.s==='void'){st.v++;return}
-    if(g.s==='win')st.w++; else if(g.s==='loss')st.l++; else st.p++;
-    st.profit+=g.profit; if(g.s!=='push') st.staked+=b.stake;
-    var c=st.byCat[b.cat]||(st.byCat[b.cat]={w:0,l:0,profit:0,err:0,n:0}); 
-    if(g.s==='win')c.w++; if(g.s==='loss')c.l++; c.profit+=g.profit;
-    if(b.snap&&b.snap.proj>0){var e=g.actual-b.snap.proj; st.err+=e; st.abs+=Math.abs(e); st.n++; c.err+=e; c.n++}
-    if(b.lean&&b.lean!=='Pass'&&g.s!=='push'){
-      var followed=b.side===b.lean;
-      if(followed){g.s==='win'?st.fw++:st.fl++} else {g.s==='win'?st.aw++:st.al++}
-    }
-  });
-  return st;
-}
-function modelCheck(rows,R){
-  var done=rows.filter(function(x){return x.g.actual!==undefined&&x.b.snap&&x.b.snap.proj>0});
-  if(done.length<5) return '';
-  var cats={}; done.forEach(function(x){var c=cats[x.b.cat]||(cats[x.b.cat]={n:0,s:0}); c.n++; c.s+=x.g.actual/x.b.snap.proj-1});
-  var h='<div class="mcheck"><h3>Model check</h3><p class="small">Is the model running high or low on the players you actually bet on? (actual yards vs the frozen projection)</p><table><tr><th>Position</th><th>Bets</th><th>Actual vs projection</th></tr>';
-  Object.keys(cats).forEach(function(k){var c=cats[k],m=c.s/c.n;h+='<tr><td>'+CATNAME[k]+'</td><td>'+c.n+'</td><td>'+(m>0?'+':'')+(m*100).toFixed(0)+'%</td></tr>'});
-  h+='</table>';
-  var tc={}; rows.forEach(function(x){var b=x.b,sn=b.snap||{}; if(!(sn.t_exp>0)||!R||!R.t||x.g.s==='pending'||x.g.s==='void') return;
-    var a=R.t[b.season+'|'+b.week+'|'+b.pid+'|'+b.cat]; if(a===undefined) return; var c=tc[b.cat]||(tc[b.cat]={n:0,s:0}); c.n++; c.s+=a/sn.t_exp-1});
-  var tk=Object.keys(tc);
-  if(tk.length){h+='<p class="small">Touches (attempts / touches / targets) vs the forecast:</p><table><tr><th>Position</th><th>Bets</th><th>Actual vs expected touches</th></tr>';
-    tk.forEach(function(k){var c=tc[k],m=c.s/c.n;h+='<tr><td>'+CATNAME[k]+'</td><td>'+c.n+'</td><td>'+(m>0?'+':'')+(m*100).toFixed(0)+'%</td></tr>'});h+='</table>'}
-  var cal=done.filter(function(x){return x.b.pOver!=null&&x.g.s!=='push'});
-  if(cal.length>=10){
-    var B=[[0,.35,'under 35%'],[.35,.45,'35-45%'],[.45,.55,'45-55%'],[.55,.65,'55-65%'],[.65,1.01,'65%+']];
-    h+='<p class="small">When the model said a given chance of Over, how often did it happen?</p><table><tr><th>Model P(over)</th><th>Bets</th><th>Said</th><th>Happened</th></tr>';
-    B.forEach(function(r){var g=cal.filter(function(x){return x.b.pOver>=r[0]&&x.b.pOver<r[1]});
-      if(!g.length) return; var said=g.reduce(function(a,x){return a+x.b.pOver},0)/g.length, hit=g.filter(function(x){return x.g.actual>x.b.line}).length/g.length;
-      h+='<tr><td>'+r[2]+'</td><td>'+g.length+'</td><td>'+Math.round(said*100)+'%</td><td>'+Math.round(hit*100)+'%</td></tr>'});
-    h+='</table>';
-  }
-  return h+'<p class="small">Small samples swing wildly. Export your bets and run research/review_bets.py for a version with error bars before changing anything.</p></div>';
-}
-function tile(label,val,cls){return '<div><dt>'+label+'</dt><dd class="'+(cls||'')+'">'+val+'</dd></div>'}
-function renderBets(){
-  var box=$('#blist'), sum=$('#bsum');
-  loadResults().then(function(R){
-    var bets=readBets().slice().sort(function(a,b){return a.enteredAt<b.enteredAt?1:-1});
-    $('#bwarn').hidden=storageOK;
-    var rows=bets.map(function(b){return {b:b,g:grade(b,R)}});
-    var st=summarize(rows), settled=st.w+st.l+st.p;
-    var roi=st.staked>0?st.profit/st.staked*100:0;
-    var h='<dl class="sum">'+tile('Record (W-L-P)',st.w+'-'+st.l+'-'+st.p)+tile('Units',fmtU(st.profit),st.profit>0?'pos':st.profit<0?'neg':'')+
-      tile('ROI',settled?roi.toFixed(1)+'%':'-',roi>0?'pos':roi<0?'neg':'')+tile('Pending / void',st.pend+' / '+st.v);
-    if(st.n) h+=tile('Model bias',(st.err/st.n>0?'+':'')+(st.err/st.n).toFixed(0)+' yds')+tile('Model avg miss',(st.abs/st.n).toFixed(0)+' yds');
-    var fo=st.fw+st.fl, ag=st.aw+st.al;
-    if(fo) h+=tile('Followed lean',st.fw+'-'+st.fl);
-    if(ag) h+=tile('Went against lean',st.aw+'-'+st.al);
-    h+='</dl>';
-    if(settled<30) h+='<p class="small" style="color:var(--mute);font-size:12px">'+settled+' settled bets so far. Anything under about 100 is mostly luck, so treat these numbers as a diary, not a verdict.</p>';
-    sum.innerHTML=bets.length?h+modelCheck(rows,R):'';
-    if(!bets.length){box.innerHTML='<div class="empty">No bets logged yet. On the other tabs, enter a book line on any card, open "Log a bet", pick a side and save. Bets lock at kickoff.</div>';updateCount();return}
-    box.innerHTML=rows.map(function(x){
-      var b=x.b,g=x.g,sn=b.snap||{}, locked=Date.now()>=Date.parse(b.kickoff);
-      var res=g.s==='pending'?(g.note||'Waiting for results (nflverse posts stats after the games, usually by Tuesday).'):
-        g.s==='void'?'No stat line recorded for this player in the final data: treated as void (check your book if he was active).':
-        g.actual+' yds vs line '+b.line+' → '+fmtU(g.profit);
-      var model=(sn.proj!=null?'proj '+Math.round(sn.proj):'')+(b.pOver!=null?' · P(over) '+Math.round(b.pOver*100)+'% · lean '+b.lean:' · no lean')+
-        (sn.opp_rank?' · opp D #'+sn.opp_rank:'')+(sn.inj?' · '+esc(sn.inj):'')+(sn.starters_out?' · out: '+esc(sn.starters_out):'');
-      return '<article class="bet"><div class="row1"><span class="badge '+g.s+'">'+g.s+'</span><span>'+esc(b.name)+' ('+esc(b.team)+')</span>'+
-        '<span class="small">'+CATNAME[b.cat]+' · wk '+b.week+'</span></div>'+
-        '<div>'+esc(b.side)+' '+b.line+' @ '+(b.odds>0?'+':'')+b.odds+' · '+b.stake+'u</div>'+
-        '<div class="small">Model when you logged it: '+model+'</div>'+
-        '<div class="small">'+res+'</div>'+
-        '<div class="small">Logged '+fmtTime(b.enteredAt)+' from data built '+fmtTime(b.builtAt)+' (model '+esc(b.model||'v1')+'); kickoff '+fmtTime(b.kickoff)+
-        (locked?' (locked)':'')+'</div>'+
-        (locked?'':'<div><button type="button" class="del" data-id="'+esc(b.id)+'">Delete</button></div>')+'</article>';
-    }).join('');
-    $$('.del',box).forEach(function(btn){btn.addEventListener('click',function(){
-      if(btn.getAttribute('data-arm')!=='1'){btn.setAttribute('data-arm','1');btn.textContent='Tap again to delete';return}
-      writeBets(readBets().filter(function(b){return b.id!==btn.getAttribute('data-id')}));renderBets();
-    })});
-    updateCount();
-  });
-}
-function updateCount(){var n=readBets().length;$('#bcount').textContent=n?' ('+n+')':''}
-
-$('#bexp').addEventListener('click',function(){
-  var blob=new Blob([JSON.stringify(readBets(),null,1)],{type:'application/json'}), a=document.createElement('a');
-  a.href=URL.createObjectURL(blob); a.download='nfl-prop-bets.json'; document.body.appendChild(a); a.click(); a.remove();
-});
-$('#bimp').addEventListener('change',function(ev){
-  var f=ev.target.files[0]; if(!f) return;
-  var rd=new FileReader(); rd.onload=function(){
-    try{var inc=JSON.parse(rd.result), cur=readBets(), have={}; cur.forEach(function(b){have[b.id]=1});
-      inc.forEach(function(b){if(b&&b.id&&b.pid&&b.kickoff&&!have[b.id]) cur.push(b)}); writeBets(cur); renderBets();
-    }catch(e){alert('That file is not a bet export from this site.')}
-  }; rd.readAsText(f); ev.target.value='';
-});
-
 /* ---- Top plays: jump to the full card ---- */
 $$('[data-goto]').forEach(function(a){a.addEventListener('click',function(ev){
   ev.preventDefault(); show(a.getAttribute('data-tab'));
   var el=document.getElementById(a.getAttribute('data-goto')); if(!el) return;
   var d=el.closest('details'); if(d) d.open=true;
-  el.scrollIntoView({block:'center'}); el.classList.add('flash'); setTimeout(function(){el.classList.remove('flash')},1800);
+  el.scrollIntoView({block:el.offsetHeight>innerHeight*0.6?'start':'center'}); el.classList.add('flash'); setTimeout(function(){el.classList.remove('flash')},1800);
 })});
 /* ---- Yardage tab: weak-defense filter, remembered on this device ---- */
 var wf=$('#weakonly');
@@ -407,7 +252,7 @@ if(wf){wf.checked=lget('weakonly')==='1'; document.body.classList.toggle('weakon
   wf.addEventListener('change',function(){document.body.classList.toggle('weakonly',wf.checked);lset('weakonly',wf.checked?'1':'')})}
 
 var h=(location.hash||'').slice(1);
-updateCount(); show(document.getElementById(h)&&/^p[0-4]$/.test(h)?h:'p0');
+show(document.getElementById(h)&&/^p[0-4]$/.test(h)?h:'p0');
 })();
 """
 
@@ -524,17 +369,6 @@ def _snap_attr(d: dict) -> str:
     return escape(json.dumps({k: _py(v) for k, v in d.items()}, separators=(",", ":")), quote=True)
 
 
-LOG_FORM = (
-    '<details class="logbox"><summary>Log a bet</summary>'
-    '<div class="logrow"><div class="seg" role="group" aria-label="Side">'
-    '<button type="button" data-side="Over" aria-pressed="false">Over</button>'
-    '<button type="button" data-side="Under" aria-pressed="false">Under</button></div>'
-    '<label>Odds<input class="odds" type="text" inputmode="numeric" value="-110"></label>'
-    '<label>Units<input class="stake" type="text" inputmode="decimal" value="1"></label>'
-    '<button type="button" class="logbtn">Save bet</button></div>'
-    '<div class="logmsg" aria-live="polite"></div></details>')
-
-
 def _book_line(ctx: dict, pid, market: str, kickoff) -> dict:
     """The book's line for a card (pre-fills the line box), as snapshot fields."""
     ln = O.line_for(ctx.get("lines") or {}, pid, market, kickoff)
@@ -589,7 +423,7 @@ def _elite_card(r, cat, ctx) -> str:
         f'<dl class="stats"><div><dt>Season</dt><dd>{_n(r["total"])} (#{int(r["rank"])})</dd></div>'
         f'<div><dt>Per game</dt><dd>{_n(r["ypg"], 1)}</dd></div><div><dt>Last 3</dt><dd>{_n(r["l3"], 1)}</dd></div>'
         f'<div><dt>Games</dt><dd>{int(r["games"])}</dd></div></dl>'
-        f'{_qb_note(snap, cat)}{_touch_block(snap, cat)}{_line_box(snap)}{LOG_FORM}</article>')
+        f'{_qb_note(snap, cat)}{_touch_block(snap, cat)}{_line_box(snap)}</article>')
 
 
 def _backup_card(r, cat, ctx) -> str:
@@ -619,7 +453,7 @@ def _backup_card(r, cat, ctx) -> str:
         f'<div><dt>{v}/G proj</dt><dd>{_n(r["proj_vol"], 1)}</dd></div>'
         f'<div><dt>Last game</dt><dd>{_n(r["last_vol"])}</dd></div>'
         f'<div><dt>If out</dt><dd>{_n(r["proj_if_out"])} yds</dd></div></dl>'
-        f'{_line_box(snap)}{LOG_FORM}</article>')
+        f'{_line_box(snap)}</article>')
 
 
 TD_SHOWN = 25          # rows per position and week shown up front; the rest sit under "Show all"
@@ -764,56 +598,121 @@ def _watch_row(w: dict) -> str:
             f'&middot; {sub}</div></div><div class="wtgt">{right}</div></div>')
 
 
-def _tracked(res) -> str:
-    """The logged card(s) (props/ledger.py): the latest week's picks and TD parlays with their results, each with its own record."""
+# ---- Tracked tab (props/ledger.py) --------------------------------------------------------------------------------
+def _rec(s: dict) -> str:
+    r = f'{s["w"]}-{s["l"]}' + (f'-{s["p"]}' if s["p"] else "")
+    if s["w"] + s["l"] + s["p"]:
+        r += f' &middot; {s["units"]:+.2f}u &middot; ROI {s["roi"]:+.0%}'
+    return r + (f' &middot; {s["pending"]} pending' if s["pending"] else "") + (f' &middot; {s["void"]} void' if s["void"] else "")
+
+
+def _status(e: dict) -> str:
+    o = e.get("outcome")
+    st = f'Won {e["units"]:+.2f}u' if o == "W" else {"L": "Lost -1u", "P": "Push", "void": "Void (no stat line)"}.get(o, "Pending")
+    return f'<div class="wtgt"><span class="st {o or "pend"}">{st}</span></div>'
+
+
+def _pick_row(e: dict) -> str:
+    bet = f'{e["side"]} {e["line"]:g}' if e.get("line") is not None else e["side"]
+    act = f' &middot; actual {e["actual"]:g}' if e.get("actual") is not None else ""
+    return (f'<div class="wrow"><div><span class="wt">{escape(e["name"])}</span><span class="tm">{escape(e["team"])}</span> '
+            f'<span class="pmkt">{e["grade"]} &middot; {escape(e["label"])}</span><div class="wsub">{escape(bet)} at '
+            f'{e["price"]:+d} &middot; model {e["p"]:.0%} vs book {e["implied"]:.0%} &middot; {escape(e["kick_txt"])}{act}</div></div>'
+            f'{_status(e)}</div>')
+
+
+def _parlay_row(e: dict) -> str:
+    def leg(l, td):
+        mark = "" if td is None else (" &#10003;" if td >= 1 else " &#10007;")
+        return f'{escape(l["name"])} {l["price"]:+d}{mark}'
+    acts = e.get("actual") or [None] * len(e["legs"])
+    legs = " &middot; ".join(leg(l, a) for l, a in zip(e["legs"], acts))
+    return (f'<div class="wrow"><div><span class="wt">{escape(e["type"])} parlay</span> '
+            f'<span class="pmkt">{e["price"]:+d} &middot; hit {e.get("hit_grade") or "-"} &middot; value {e.get("value_grade") or "-"}</span>'
+            f'<div class="wsub">{legs} &middot; model {e["p"]:.1%} vs book {e["implied"]:.1%}</div></div>{_status(e)}</div>')
+
+
+def _split(entries: list) -> tuple[list, list]:
+    return [e for e in entries if e.get("kind") != "parlay"], [e for e in entries if e.get("kind") == "parlay"]
+
+
+def _tracked_strip(res) -> str:
+    """One line on Top plays: the season record so far, linking to the Tracked tab."""
+    from .ledger import summary
+    picks, pars = _split(getattr(res, "ledger", None) or [])
+    if not picks and not pars:
+        return ""
+    bits = ([f'picks <b>{_rec(summary(picks))}</b>'] if picks else []) + ([f'parlays <b>{_rec(summary(pars))}</b>'] if pars else [])
+    return (f'<div class="tstrip">Tracked this season: {" &middot; ".join(bits)}'
+            f'<a href="#p3" data-goto="tracked" data-tab="p3">See the history &rsaquo;</a></div>')
+
+
+def _breakdown(rows: list, title: str) -> str:
+    """A small table: record, units and ROI for each group, only for groups with entries."""
+    from .ledger import summary
+    body = ""
+    for label, part in rows:
+        if not part:
+            continue
+        s = summary(part)
+        rec = f'{s["w"]}-{s["l"]}' + (f'-{s["p"]}' if s["p"] else "")
+        cls = "pos" if s["units"] > 0 else "neg" if s["units"] < 0 else ""
+        roi = f'{s["roi"]:+.0%}' if s["roi"] is not None else "-"
+        body += (f'<tr><td>{escape(label)}</td><td>{rec}</td><td class="{cls}">{s["units"]:+.2f}u</td><td>{roi}</td>'
+                 f'<td>{s["pending"]}</td></tr>')
+    if not body:
+        return ""
+    return (f'<table class="ttable"><tr><th>{escape(title)}</th><th>W-L</th><th>Units</th><th>ROI</th><th>Pending</th></tr>'
+            f'{body}</table>')
+
+
+def _tracked_page(res) -> str:
+    """The Tracked tab: season records for the logged pick cards and TD parlays, what is working, and every week's card."""
     from .ledger import summary
     entries = getattr(res, "ledger", None) or []
+    lede = ('<p class="lede">Every pick card and TD parlay we logged, frozen before kickoff from the board as it stood and graded '
+            'automatically once the stats post (usually Monday or Tuesday). 1 unit each at the logged price. Picks and parlays '
+            'keep separate records so one big parlay never hides how the picks are doing.</p>')
     if not entries:
-        return ""
-    wk = max(e["week"] for e in entries)
-    cur = [e for e in entries if e["week"] == wk and e.get("kind") != "parlay"]
-    par = [e for e in entries if e["week"] == wk and e.get("kind") == "parlay"]
+        return (lede + '<div class="empty" id="tracked">Nothing logged yet. Ask for a week\'s card (top 10 picks) and TD parlays '
+                'to be logged before kickoff and they will show up here.</div>')
+    picks, pars = _split(entries)
 
-    def rec(s):
-        r = f'{s["w"]}-{s["l"]}' + (f'-{s["p"]}' if s["p"] else "")
-        if s["w"] + s["l"] + s["p"]:
-            r += f' &middot; {s["units"]:+.2f}u &middot; ROI {s["roi"]:+.0%}'
-        return r + (f' &middot; {s["pending"]} pending' if s["pending"] else "") + (f' &middot; {s["void"]} void' if s["void"] else "")
+    def tiles(part, label):
+        s = summary(part)
+        cls = "pos" if s["units"] > 0 else "neg" if s["units"] < 0 else ""
+        roi = f'{s["roi"]:+.0%}' if s["roi"] is not None else "-"
+        rec = f'{s["w"]}-{s["l"]}' + (f'-{s["p"]}' if s["p"] else "")
+        return (f'<div><h3>{label}</h3><dl class="sum"><div><dt>Record</dt><dd>{rec}</dd></div>'
+                f'<div><dt>Units</dt><dd class="{cls}">{s["units"]:+.2f}u</dd></div><div><dt>ROI</dt><dd class="{cls}">{roi}</dd></div>'
+                f'<div><dt>Pending / void</dt><dd>{s["pending"]} / {s["void"]}</dd></div></dl></div>')
 
-    def status(e):
-        o = e.get("outcome")
-        st = f'Won {e["units"]:+.2f}u' if o == "W" else {"L": "Lost -1u", "P": "Push", "void": "Void (no stat line)"}.get(o, "Pending")
-        return f'<div class="wtgt"><span class="st {o or "pend"}">{st}</span></div>'
-
-    rows = []
-    for e in sorted(cur, key=lambda e: e["rank"]):
-        bet = f'{e["side"]} {e["line"]:g}' if e.get("line") is not None else e["side"]
-        act = f' &middot; actual {e["actual"]:g}' if e.get("actual") is not None else ""
-        rows.append(f'<div class="wrow"><div><span class="wt">{escape(e["name"])}</span><span class="tm">{escape(e["team"])}</span> '
-                    f'<span class="pmkt">{e["grade"]} &middot; {escape(e["label"])}</span><div class="wsub">{escape(bet)} at '
-                    f'{e["price"]:+d} &middot; model {e["p"]:.0%} vs book {e["implied"]:.0%} &middot; {escape(e["kick_txt"])}{act}</div></div>'
-                    f'{status(e)}</div>')
-    prow = []
-    for e in sorted(par, key=lambda e: e.get("rank") or 0):
-        legs = " &middot; ".join(f'{escape(l["name"])} {l["price"]:+d}' for l in e["legs"])
-        prow.append(f'<div class="wrow"><div><span class="wt">{escape(e["type"])} parlay</span> '
-                    f'<span class="pmkt">{e["price"]:+d} &middot; hit {e.get("hit_grade") or "-"} &middot; value {e.get("value_grade") or "-"}</span>'
-                    f'<div class="wsub">{legs} &middot; model {e["p"]:.1%} vs book {e["implied"]:.1%}</div></div>{status(e)}</div>')
-    picks_all = [e for e in entries if e.get("kind") != "parlay"]
-    pars_all = [e for e in entries if e.get("kind") == "parlay"]
-    season = rec(summary(picks_all)) if len({e["week"] for e in picks_all}) > 1 else ""
-    pseason = rec(summary(pars_all)) if len({e["week"] for e in pars_all}) > 1 else ""
-    src = (cur or par)[0]
-    logged = _et(src.get("source_built")) if src.get("source_built") else ""
-    head = (f'<h3>Tracked picks &middot; week {wk} card: {rec(summary(cur))}</h3>' if cur else f'<h3>Tracked picks &middot; week {wk}</h3>')
-    intro = (f'<p>The top {len(cur)} plays as the board had them at {escape(logged)}, frozen and graded automatically once the games '
-             f'are final (1 unit each at the logged price).' + (f' Season: {season}.' if season else "") + '</p>') if cur else ""
-    ptxt = ""
-    if par:
-        ptxt = (f'<h3 class="sub">TD parlays &middot; week {wk}: {rec(summary(par))}</h3><p>Logged before kickoff, 1 unit each at the '
-                f'product of the legs\' prices; a leg with no stat line drops out. Kept apart from the picks record.'
-                + (f' Season: {pseason}.' if pseason else "") + f'</p>{"".join(prow)}')
-    return f'<section class="tracked" id="tracked">{head}{intro}{"".join(rows)}{ptxt}</section>'
+    top = '<div class="tgrid">' + (tiles(picks, "Picks") if picks else "") + (tiles(pars, "TD parlays") if pars else "") + "</div>"
+    settled = sum(e.get("outcome") in ("W", "L", "P") for e in picks)
+    note = (f'<p class="small">{settled} settled pick{"s" if settled != 1 else ""} so far. Under about 100 it is mostly luck: read '
+            f'these as a diary, not a verdict.</p>')
+    what = '<div class="tgrid"><div><h3>What is working: picks</h3>' + _breakdown(
+        [("Grade A", [e for e in picks if e.get("grade") == "A"]), ("Grade B", [e for e in picks if e.get("grade") == "B"])], "Grade")
+    what += _breakdown([(lbl, [e for e in picks if e.get("label") == lbl]) for lbl in sorted({e.get("label") for e in picks})], "Market")
+    what += _breakdown([(sd, [e for e in picks if e.get("side") == sd]) for sd in ("Over", "Under", "Yes")], "Side")
+    what += "</div>"
+    if pars:
+        what += '<div><h3>What is working: parlays</h3>' + _breakdown(
+            [(t, [e for e in pars if e.get("type") == t]) for t in ("Best chance", "Balanced", "Best value")], "Profile") + "</div>"
+    what += "</div>"
+    weeks = []
+    for wk in sorted({e["week"] for e in entries}, reverse=True):
+        wp = sorted([e for e in picks if e["week"] == wk], key=lambda e: e.get("rank") or 0)
+        wl = sorted([e for e in pars if e["week"] == wk], key=lambda e: e.get("rank") or 0)
+        src = (wp or wl)[0]
+        when = f' &middot; logged from the board at {escape(_et(src["source_built"]))}' if src.get("source_built") else ""
+        h = f'<section class="twk"><h3>Week {wk}{when}</h3>'
+        if wp:
+            h += f'<h4>Card &middot; {_rec(summary(wp))}</h4>' + "".join(_pick_row(e) for e in wp)
+        if wl:
+            h += f'<h4>TD parlays &middot; {_rec(summary(wl))}</h4>' + "".join(_parlay_row(e) for e in wl)
+        weeks.append(h + "</section>")
+    return f'{lede}<section class="tracked" id="tracked">{top}{note}{what}{"".join(weeks)}</section>'
 
 
 def _board(res) -> str:
@@ -845,7 +744,7 @@ def _board(res) -> str:
            f'book\'s, or a player whose touches this season are well below what the model assumes) there is no pick: that gap is '
            f'usually news the model has not seen, so check it on the other tabs. Prices move: '
            f'check the number before you bet.</p></details>')
-    return f'<div class="board">{head}{body}{wl}{_tracked(res)}{how}</div>'
+    return f'<div class="board">{head}{body}{wl}{_tracked_strip(res)}{how}</div>'
 
 
 def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> str:
@@ -887,7 +786,7 @@ def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> st
 <button class="tab" role="tab" data-p="p1" aria-selected="false">Yardage</button>
 <button class="tab" role="tab" data-p="p2" aria-selected="false">Backups</button>
 <button class="tab" role="tab" data-p="p4" aria-selected="false">Anytime TD</button>
-<button class="tab" role="tab" data-p="p3" aria-selected="false">My bets<span id="bcount"></span></button></nav></header>
+<button class="tab" role="tab" data-p="p3" aria-selected="false">Tracked</button></nav></header>
 {note_html}
 <div class="panel" id="p0">{_board(res)}</div>
 
@@ -905,10 +804,7 @@ def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> st
 {_parlays(res)}{_chipnav("t", TD_GROUPS)}<div class="cols">{p4}</div></div>
 
 <div class="panel" id="p3" hidden>
-<p class="lede">Your bet log, kept on <b>this device only</b>. When you save a bet, the page freezes what the model knew right then: projection, matchup, injury status, the line, and when the data was built. Results come later from a separate file and only grade the bet, so they can never rewrite what the model said. Bets lock at kickoff: no adding, no deleting afterward. Stats usually post by Tuesday.</p>
-<div class="warnbox" id="bwarn" hidden>Your browser is blocking storage, so bets can't be saved here. Try a normal (non-private) window.</div>
-<div id="bsum"></div><div id="blist"></div>
-<div class="btools"><button type="button" id="bexp">Export bets</button><label class="btn">Import bets<input type="file" id="bimp" accept="application/json" hidden></label></div>
+{_tracked_page(res)}
 </div>
 
 <details class="about"><summary>How this works, and how much to trust it</summary><ul>

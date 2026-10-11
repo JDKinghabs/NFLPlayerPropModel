@@ -86,8 +86,9 @@ To keep score, a week's card is logged on request: `python -m props.ledger log -
 copies the first 10 picks (board order) from one archived pre-kickoff snapshot into `history/ledger/<season>.json`, with the line,
 price, model and book probability frozen and the source snapshot's hash for the audit trail. Every refresh grades pending picks
 against the same results the site uses (yardage: actual vs line, push on the number; anytime TD: 1+ rushing or receiving TD; no
-stat line = void), 1 unit each at the logged price, and the archive step commits the file. The Top plays tab shows the latest
-card with each pick's result and the record (W-L, units, ROI). `python -m props.ledger show` prints it.
+stat line = void), 1 unit each at the logged price, and the archive step commits the file. The **Tracked** tab shows the season
+record (W-L, units, ROI) for picks and parlays separately, what is working (picks by grade, market and side; parlays by profile)
+and every logged week with each pick's result; Top plays carries a one-line summary. `python -m props.ledger show` prints it.
 TD parlays are logged the same way with `--parlays` (all three from one snapshot) and kept as a separate record: a parlay loses as
 soon as one leg's game ends without his TD, a leg with no stat line drops out (the price is re-figured without it), and it wins
 when every remaining leg scored, paying the product of their prices.
@@ -112,7 +113,7 @@ Build it locally with `python -m props --lookahead 2 --site site` and serve the 
 `index.html` from disk blocks `results.json`). Add `--odds history/odds --pull-odds off` to use saved DraftKings lines without spending credits.
 
 The page is dark only (no white flash on load) and opens on **Top plays**. The other tabs keep every flagged player: **Yardage**
-(all top players; a checkbox narrows it to weak defenses), **Backups**, **Anytime TD** and **My bets**. A pick's "Open full card"
+(all top players; a checkbox narrows it to weak defenses), **Backups**, **Anytime TD** and **Tracked** (the logged cards and parlays). A pick's "Open full card"
 jumps to that player's card.
 
 ### Prediction archive (`history/`)
@@ -131,26 +132,13 @@ pre-game prediction (anytime-TD probabilities, Sheet 1 and Sheet 2 projections, 
 - The commit message ends in `[skip ci]` and the workflow only runs on changes to `props/**`, so it cannot loop.
 - Run it yourself with `--history some_folder`; without the flag nothing is saved.
 
-### Bet log ("My bets" tab)
+### Card leans
 
-Enter the book line on a card and the page shows the model's chance of going Over, with a lean (Over at 55%+, Under at 45%
-or less, otherwise Pass). Open **Log a bet**, pick a side, odds and units, and save. Learning from the log is only honest
-if hindsight can't leak in, so:
-
-- **The snapshot is frozen at save time**: projection, matchup rank, injury status, the starters ruled out, the line, the
-  lean and the time the page's data was built. Nothing is ever recomputed.
-- **Results are a separate file** (`results.json`, rebuilt daily from nflverse). It only grades bets and never touches a snapshot. It also records TDs scored (`td`: rushing + receiving, per RB / WR / TE with a stat line), which the scorecard grades the anytime-TD probabilities against.
-- **Bets lock at kickoff**: no adding or deleting after the game starts. Only games not yet kicked off are on the page.
-- A bet with a team-final but no stat line for the player is **void** (check your book if he was active). A line equal to the result is a push.
-- The log lives in the browser (localStorage), so it is private to that device. **Export / Import** moves it between devices.
-- The summary shows record, units, ROI, the model's average miss and bias, and how you did when following vs going against its lean.
-- Every bet records the **model version** (`MODEL_VERSION` in `config.py`), so bets made before and after a model change stay comparable.
-- **Model check** (appears at 5+ settled bets): actual vs projection by position, and, at 10+, predicted vs realised Over rates.
-
-**Retuning from your own bets:** export the log and run `python research/review_bets.py nfl-prop-bets.json`. It grades every bet
-against the real results and reports record, bias with 95% intervals, calibration with Wilson intervals, and whether following the
-lean beat going against it. It only recommends a change at 30+ settled bets per position *and* a bias whose interval excludes zero
-by 3%+; below that it says "no change warranted". Nothing is changed automatically.
+Every yardage card is pre-filled with the DraftKings line (or takes one you type) and shows the model's chance of going Over, with a
+lean (Over at 55%+, Under at 45% or less, otherwise Pass). Bets are no longer logged in the browser: the record lives in the
+**Tracked** tab, built from `history/ledger/` (see Tracked picks above). `results.json` (rebuilt daily from nflverse: yards, touches
+and TDs per player-game) is still published next to the page. The old browser bet log's exports can still be graded with
+`python research/review_bets.py nfl-prop-bets.json`.
 
 Elite-sheet probabilities come from `research/calibrate_distribution.py`: the distribution of actual / projection in the
 walk-forward backtests, fit on 2023-24 and checked on 2025 (predicted P(over) within about 2-5 points for RB and WR, up to 10 for
@@ -183,7 +171,6 @@ lines come from The Odds API (DraftKings, see Top plays); without a key you ente
    - *RB / WR*: when teammates are likely out, a **workload flag** shows who and how much of the pool they held, plus the historical
      size of the bump (RB touches +19% over 36 games, WR targets +6% over 241). It is **information only**: it did not improve
      out-of-sample accuracy, so it is not folded into the expected number or the yards projection.
-   - The forecast is frozen into each saved bet and graded against actual touches (`results.json` carries them) in the Model check.
 6. **QB flag** (WR cards): when the team's starting QB (most attempts this season) may miss the game *and played the previous one*
    (injury report Out / Doubtful / Questionable, or on IR), the card shows a chip, the historical size of the effect and an
    "about N yds if he sits" figure. In a QB's first missed game, 2022-25, top WRs ran about -22% in receiving yards and -12% in
