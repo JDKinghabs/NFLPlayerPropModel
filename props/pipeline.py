@@ -32,6 +32,7 @@ class Result:
     td: dict = field(default_factory=dict)          # anytime-TD tab: {"RB"/"WR"/"TE": ranked DataFrame}
     elite_all: dict = field(default_factory=dict)   # Yardage tab: top-N players against ANY defense (elite = the weak-D subset)
     picks: list = field(default_factory=list)       # Top plays board (props/picks.py)
+    parlays: list = field(default_factory=list)     # TD parlays on the Anytime TD tab (props/picks.py::td_parlays)
     watch: list = field(default_factory=list)       # watchlist: games with no line from the book yet
     lines: dict = field(default_factory=dict)       # the book's lines by (pid, market), to pre-fill the research cards
     ledger: list = field(default_factory=list)      # tracked picks (props/ledger.py), graded; filled by the CLI with --history
@@ -90,6 +91,7 @@ def build(season: int | None = None, weeks: list[int] | None = None, refresh: bo
         except Exception as e:                       # lines are an add-on: never take the site down over them
             odds_meta["note"] = f"Sportsbook lines unavailable this time ({type(e).__name__})."
     picks, watch = P.make(elite_all, td, lines, CAL.load()) if not slate.empty else ([], [])
+    parlays = P.td_parlays(P.td_candidates(td, lines)[0]) if lines and not slate.empty else []
 
     inj_notes = {}
     for w in slate_weeks:
@@ -105,4 +107,4 @@ def build(season: int | None = None, weeks: list[int] | None = None, refresh: bo
         "td_note": td_note, "td_model": (model or {}).get("version", ""), "odds": odds_meta,
     }
     return Result(season, slate, ratings, elite, backups, meta, build_results(d["stats"], season), td,
-                  elite_all=elite_all, picks=picks, watch=watch, lines=lines)
+                  elite_all=elite_all, picks=picks, watch=watch, lines=lines, parlays=parlays)

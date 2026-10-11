@@ -45,6 +45,16 @@ def ev(p: float, price: float) -> float:
     return p * profit(price) - (1 - p)
 
 
+def decimal(price: float) -> float:
+    """Decimal odds (stake included) for an American price."""
+    return 1 + profit(price)
+
+
+def american(dec: float) -> int:
+    """American price for decimal odds."""
+    return round((dec - 1) * 100) if dec >= 2 else round(-100 / (dec - 1))
+
+
 def price_for(p: float) -> int:
     """The American price that implies probability p."""
     return round(-100 * p / (1 - p)) if p >= 0.5 else round(100 * (1 - p) / p)
@@ -105,7 +115,8 @@ def td_reasons(r: dict) -> list:
 def _base(r: dict, market: str, kind: str) -> dict:
     return dict(kind=kind, market=market, label=LABEL[market], pid=r["player_id"], name=r["name"], team=r["team"],
                 opp_txt=r.get("opp_txt", ""), kick_txt=r.get("kick_txt", ""), kickoff=_iso(r["kickoff"]), week=int(r["week"]),
-                game=r.get("game_id") or f"{r['week']}-{r['team']}", inj=r.get("inj") or "")
+                game=r.get("game_id") or f"{r['week']}-" + "-".join(sorted([r["team"], str(r.get("opp") or "")])),
+                inj=r.get("inj") or "")
 
 
 # ---- candidates ------------------------------------------------------------------------------------------------------
@@ -212,6 +223,34 @@ def watchlist(unpriced_yards: list, unpriced_td: list, lines: dict, cal: dict) -
         if len(tds) == C.WATCH_MAX - len(yards):
             break
     return yards + tds
+
+
+def td_parlays(cands: list, n: int = C.PARLAY_N, legs: int = C.PARLAY_LEGS) -> list:
+    """Up to n parlays of `legs` graded anytime-TD picks.  Best EV first, every leg from a different game (same-game TDs are
+    correlated and books price those parlays differently), no player in two parlays.  A thin week gets fewer, never padded.
+    Model chance = product of the legs' P(TD); the price is the product of their decimal odds."""
+    pool = sorted((c for c in cands if c["kind"] == "td" and c["grade"]), key=lambda c: -c["ev"])
+    out, used = [], set()
+    for _ in range(n):
+        chosen, games = [], set()
+        for c in pool:
+            if c["pid"] in used or c["game"] in games or any(c["pid"] == x["pid"] for x in chosen):
+                continue
+            chosen.append(c)
+            games.add(c["game"])
+            if len(chosen) == legs:
+                break
+        if len(chosen) < legs:
+            break
+        used |= {c["pid"] for c in chosen}
+        dec, p = 1.0, 1.0
+        for c in chosen:
+            dec, p = dec * decimal(c["price"]), p * c["p"]
+        out.append({"rank": len(out) + 1, "p": p, "dec": dec, "price": american(dec), "implied": 1 / dec, "edge": p - 1 / dec,
+                    "ev": p * dec - 1, "book": chosen[0]["book"],
+                    "legs": [{k: c.get(k) for k in ("pid", "name", "team", "pos", "opp_txt", "kick_txt", "kickoff", "week", "price",
+                                                    "p", "implied", "edge", "grade", "inj", "updated")} for c in chosen]})
+    return out
 
 
 def make(elite_all: dict, td: dict, lines: dict, cal: dict | None) -> tuple[list, list]:

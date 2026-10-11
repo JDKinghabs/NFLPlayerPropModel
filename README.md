@@ -20,7 +20,7 @@ pip install -r requirements.txt
 python -m props                    # earliest week with games still to play
 python -m props --weeks 5          # a specific week (or several: --weeks 4 5)
 python -m props --refresh          # force a re-download (data is cached for 3h in data/raw/)
-pytest                             # 113 tests
+pytest                             # 116 tests
 ```
 
 Output goes to `output/NFL_Props_<season>_Wk<weeks>.xlsx`. Only games that have **not kicked off** are shown.
@@ -69,6 +69,11 @@ put it in code. Without a key, nothing is pulled and the board shows the watchli
    is usually news the model has not seen. The players are still on the research tabs with the line filled in.
 6. **Watchlist**: top spots whose game has no DraftKings line yet get a target number instead of a grade, solved from the same
    distribution at break-even (-110) plus the B margin ("Under at 92.5 or higher", "Yes at +210 or better").
+
+**TD parlays** (top of the Anytime TD tab): up to three 3-leg parlays built only from graded anytime-TD picks, best EV first,
+every leg from a different game (same-game TDs are correlated and books price those parlays differently) and no player in two
+parlays. Model chance = product of the legs' chances; price = product of their DraftKings prices. A week with too few graded legs
+shows fewer parlays, never padded.
 
 Every research card is pre-filled with the DraftKings line, so its Over/Under lean shows without typing; the TD tab shows the
 DraftKings price and edge on every row.

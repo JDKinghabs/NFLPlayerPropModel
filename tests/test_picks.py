@@ -129,3 +129,27 @@ def test_make_leaves_inputs_alone_and_needs_a_calibration():
     P.make(elite, {}, {}, CALIB)
     assert list(elite["WR"].columns) == cols
     assert P.make(elite, {}, {}, None) == ([], [])
+
+
+def tdc(pid, ev, game, grade="A", price=100, p=0.5, kind="td"):
+    return dict(kind=kind, pid=pid, name=pid.upper(), team="T" + pid, pos="RB", opp_txt="X", kick_txt="Sun 1p",
+                kickoff=KICK_UTC, week=5, game=game, price=price, p=p, implied=P.implied(price), edge=p - P.implied(price),
+                ev=ev, grade=grade, inj="", updated=None, book="DraftKings")
+
+
+def test_parlay_price_and_chance_multiply_across_legs():
+    x = P.td_parlays([tdc("a", 0.3, "g1"), tdc("b", 0.2, "g2")], n=1, legs=2)[0]
+    assert x["price"] == 300 and x["dec"] == pytest.approx(4.0) and x["p"] == pytest.approx(0.25)
+    assert x["implied"] == pytest.approx(0.25) and x["ev"] == pytest.approx(0.0) and [l["pid"] for l in x["legs"]] == ["a", "b"]
+    assert P.american(1.5) == -200 and P.american(P.decimal(-110)) == -110 and P.american(P.decimal(425)) == 425
+
+
+def test_parlays_use_graded_legs_from_different_games_and_never_repeat_a_player():
+    cands = [tdc("a", 0.9, "g1"), tdc("b", 0.8, "g1"),                   # same game (teammates or opponents): never together
+             tdc("c", 0.7, "g2"), tdc("d", 0.6, "g3"), tdc("e", 0.5, "g4"), tdc("f", 0.4, "g2"),
+             tdc("ungraded", 2.0, "g5", grade=None), tdc("yards", 2.0, "g6", kind="yards")]
+    ps = P.td_parlays(cands, n=3, legs=3)
+    assert [[l["pid"] for l in x["legs"]] for x in ps] == [["a", "c", "d"], ["b", "e", "f"]]   # a 3rd would need 3 more games
+    for x in ps:
+        assert len({c["game"] for c in cands if c["pid"] in {l["pid"] for l in x["legs"]}}) == 3
+    assert P.td_parlays(cands[:2], n=3, legs=3) == [] and P.td_parlays([], n=3) == []

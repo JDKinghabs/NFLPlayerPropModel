@@ -94,6 +94,8 @@ PICK_TD_MAX_RATIO = 1.6        # [assumed] no TD pick when the model's chance is
                                # likelier news the model has not seen (a role change, an injury) than an edge
 PICK_TD_MIN_ROLE = 0.6         # [assumed] no TD pick when his touches per game THIS season are under 60% of the usage the model
                                # assumes (that usage leans on last season), or he has not played this season
+PARLAY_N = 3                   # TD parlays on the Anytime TD tab: how many, and legs in each (graded TD picks only, every leg
+PARLAY_LEGS = 3                # from a different game, no player in two parlays)
 PICK_TD_MIN_P = 0.20           # [assumed] no anytime-TD pick below this model chance: on a longshot a 2-3 point calibration error is a
                                # huge relative error (e.g. a fullback at 15% vs a +4000 price looked like a 12-point edge)
 WATCH_MAX = 10                 # watchlist rows (players whose game has no DraftKings line yet)
