@@ -272,3 +272,15 @@ def test_td_tab_shows_parlays_or_says_why_not():
     res.parlays = []
     assert "Not enough TD legs in different games at a fair price" in render(res)
     assert "No DraftKings lines yet: parlays appear" in render(board_result(book_lines=0))
+
+
+def test_tracked_section_lists_parlays_with_their_own_record():
+    res = board_result()
+    pl = dict(season=2026, week=5, kind="parlay", type="Best chance", rank=1, price=2209, p=0.059, implied=0.043,
+              hit_grade="B", value_grade="B", source_built="2026-10-11T14:12:54Z", outcome="L", units=-1.0,
+              legs=[dict(name="Olave", price=185), dict(name="Hampton", price=200), dict(name="LaPorta", price=170)])
+    res.ledger = [pl, {**pl, "type": "Best value", "rank": 3, "outcome": None, "units": None}]
+    html = render(res)
+    assert "TD parlays &middot; week 5: 0-1 &middot; -1.00u" in html and "1 pending" in html
+    assert "Best chance parlay" in html and "+2209 &middot; hit B &middot; value B" in html and "Olave +185" in html
+    assert "Lost -1u" in html and "Pending" in html

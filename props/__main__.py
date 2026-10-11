@@ -61,9 +61,11 @@ def main(argv=None):
     if a.history:
         from .ledger import summary, update
         res.ledger = update(a.history / "ledger", res)
-        if res.ledger:
-            s = summary(res.ledger)
-            print(f"  Tracked picks: {s['w']}-{s['l']}-{s['p']} ({s['units']:+.2f}u), {s['pending']} pending")
+        for name, part in (("picks", [e for e in res.ledger if e.get("kind") != "parlay"]),
+                           ("parlays", [e for e in res.ledger if e.get("kind") == "parlay"])):
+            if part:
+                s = summary(part)
+                print(f"  Tracked {name}: {s['w']}-{s['l']}-{s['p']} ({s['units']:+.2f}u), {s['pending']} pending")
         from .history import write_snapshot
         snap = write_snapshot(res, a.history)
         print(f"Archived this build's predictions to {snap}" if snap else

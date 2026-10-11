@@ -20,7 +20,7 @@ pip install -r requirements.txt
 python -m props                    # earliest week with games still to play
 python -m props --weeks 5          # a specific week (or several: --weeks 4 5)
 python -m props --refresh          # force a re-download (data is cached for 3h in data/raw/)
-pytest                             # 117 tests
+pytest                             # 120 tests
 ```
 
 Output goes to `output/NFL_Props_<season>_Wk<weeks>.xlsx`. Only games that have **not kicked off** are shown.
@@ -88,6 +88,9 @@ price, model and book probability frozen and the source snapshot's hash for the 
 against the same results the site uses (yardage: actual vs line, push on the number; anytime TD: 1+ rushing or receiving TD; no
 stat line = void), 1 unit each at the logged price, and the archive step commits the file. The Top plays tab shows the latest
 card with each pick's result and the record (W-L, units, ROI). `python -m props.ledger show` prints it.
+TD parlays are logged the same way with `--parlays` (all three from one snapshot) and kept as a separate record: a parlay loses as
+soon as one leg's game ends without his TD, a leg with no stat line drops out (the price is re-figured without it), and it wins
+when every remaining leg scored, paying the product of their prices.
 
 ## Line log (older format)
 
