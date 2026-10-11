@@ -13,6 +13,7 @@ The commit history is the audit trail: a prediction cannot be changed after the 
 
 `history/ledger/<season>.json` holds the cards logged with `python -m props.ledger log` (the top N picks of one snapshot above).
 Logged fields never change; each refresh fills in `actual`, `outcome` (W / L / P / void) and `units` once the game is final.
+TD parlays (`--parlays`) are entries with `kind: "parlay"` and a `legs` list; they are graded leg by leg and kept as their own record.
 
 ## Sportsbook lines (`history/odds/`)
 

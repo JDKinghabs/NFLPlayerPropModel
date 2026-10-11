@@ -69,3 +69,39 @@ def test_summary_record_units_and_roi():
     assert (s["w"], s["l"], s["p"], s["void"], s["pending"], s["n"]) == (2, 1, 0, 1, 1, 5)
     assert s["units"] == pytest.approx(4.159) and s["roi"] == pytest.approx(4.159 / 3)
     assert L.summary([])["roi"] is None
+
+
+def leg(pid, team, price=100, week=5):
+    return dict(pid=pid, name=pid.upper(), team=team, pos="WR", opp_txt="X", kick_txt="Sun 1p", kickoff="2026-10-11T17:00:00Z",
+                week=week, price=price, p=0.4, implied=0.5, edge=0.0, ev=0.0, grade=None, inj="")
+
+
+PSNAP = {"season": 2026, "built": "2026-10-11T14:12:54Z", "hash": "h",
+         "parlays": [dict(rank=1, type="Best chance", p=0.064, dec=8.0, price=700, implied=0.125, edge=-0.06, ev=-0.49,
+                          hit_grade="A", value_grade="C", book="DraftKings",
+                          legs=[leg("a", "AAA"), leg("b", "BBB"), leg("c", "CCC")])]}
+
+
+def test_parlays_are_logged_as_their_own_entries():
+    (e,) = L.card_parlays(PSNAP, source="snap.json")
+    assert e["id"] == "2026|5|parlay|Best chance" and e["kind"] == "parlay" and e["price"] == 700
+    assert [l["pid"] for l in e["legs"]] == ["a", "b", "c"] and e["source_built"] == "2026-10-11T14:12:54Z"
+    assert e["hit_grade"] == "A" and e["value_grade"] == "C" and e["outcome"] is None
+
+
+def presults(final, td):
+    return {"final": [f"2026|5|{t}" for t in final], "y": {}, "td": {f"2026|5|{k}": v for k, v in td.items()}}
+
+
+def test_parlay_grading_loses_early_wins_on_every_leg_and_drops_void_legs():
+    e = L.card_parlays(PSNAP)
+    g, _ = L.grade(e, presults(["AAA"], {"a": 0}))                                  # first leg blanked: lost already
+    assert g[0]["outcome"] == "L" and g[0]["units"] == -1.0
+    g, changed = L.grade(e, presults(["AAA", "BBB"], {"a": 1, "b": 2}))             # third game still to play
+    assert not changed and g[0]["outcome"] is None
+    g, _ = L.grade(e, presults(["AAA", "BBB", "CCC"], {"a": 1, "b": 1, "c": 1}))
+    assert g[0]["outcome"] == "W" and g[0]["units"] == 7.0 and g[0]["actual"] == [1, 1, 1]       # 2.0^3 - 1
+    g, _ = L.grade(e, presults(["AAA", "BBB", "CCC"], {"a": 1, "b": 1}))           # c had no stat line: dropped
+    assert g[0]["outcome"] == "W" and g[0]["units"] == 3.0
+    g, _ = L.grade(e, presults(["AAA", "BBB", "CCC"], {}))
+    assert g[0]["outcome"] == "void" and g[0]["units"] == 0.0
