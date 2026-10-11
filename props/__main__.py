@@ -59,6 +59,11 @@ def main(argv=None):
         elif rep is None:
             print(f"  NOTE: no usable injury report for week {w} yet - no injury flags for those games")
     if a.history:
+        from .ledger import summary, update
+        res.ledger = update(a.history / "ledger", res)
+        if res.ledger:
+            s = summary(res.ledger)
+            print(f"  Tracked picks: {s['w']}-{s['l']}-{s['p']} ({s['units']:+.2f}u), {s['pending']} pending")
         from .history import write_snapshot
         snap = write_snapshot(res, a.history)
         print(f"Archived this build's predictions to {snap}" if snap else

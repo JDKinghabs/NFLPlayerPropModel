@@ -9,6 +9,11 @@ the one to grade against what happened. A snapshot identical to the previous one
 
 The commit history is the audit trail: a prediction cannot be changed after the game without that showing up in git.
 
+## Tracked picks (`history/ledger/`)
+
+`history/ledger/<season>.json` holds the cards logged with `python -m props.ledger log` (the top N picks of one snapshot above).
+Logged fields never change; each refresh fills in `actual`, `outcome` (W / L / P / void) and `units` once the game is final.
+
 ## Sportsbook lines (`history/odds/`)
 
 `history/odds/<season>/<UTC pull time>.json` is one pull from The Odds API (`props/odds.py`): the events, then every US book's
