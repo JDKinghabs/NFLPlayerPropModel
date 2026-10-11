@@ -240,3 +240,18 @@ def test_yardage_tab_lists_every_opponent_with_a_weak_defense_filter():
     html = render(res)
     assert 'id="c-QB-00-1-4" data-weak="1"' in html and 'id="c-QB-00-9-4" data-weak="0"' in html
     assert 'id="weakonly"' in html and ".weakonly #p1 .card[data-weak=\"0\"]{display:none}" in html
+
+
+def test_board_shows_the_tracked_card_with_its_record():
+    res = board_result()
+    base = dict(season=2026, week=5, team="GB", label="Rec yds", kick_txt="Sun 1p", implied=0.52, p=0.67, grade="A",
+                source_built="2026-10-11T13:25:30Z")
+    res.ledger = [dict(base, rank=1, name="Won <Guy>", side="Under", line=56.5, price=-110, outcome="W", units=0.909, actual=41),
+                  dict(base, rank=2, name="Lost Guy", side="Under", line=81.5, price=-112, outcome="L", units=-1.0, actual=90),
+                  dict(base, rank=3, name="Later Guy", side="Yes", line=None, price=425, label="Anytime TD", grade="B",
+                       outcome=None, units=None, actual=None)]
+    html = render(res)
+    assert 'id="tracked"' in html and "week 5 card: 1-1 &middot; -0.09u" in html and "1 pending" in html
+    assert "Won &lt;Guy&gt;" in html and "Won +0.91u" in html and "Lost -1u" in html and "Pending" in html
+    assert "Yes at +425" in html and "actual 41" in html
+    assert 'id="tracked"' not in render(board_result())                             # nothing logged: no section

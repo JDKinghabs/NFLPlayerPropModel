@@ -34,6 +34,7 @@ class Result:
     picks: list = field(default_factory=list)       # Top plays board (props/picks.py)
     watch: list = field(default_factory=list)       # watchlist: games with no line from the book yet
     lines: dict = field(default_factory=dict)       # the book's lines by (pid, market), to pre-fill the research cards
+    ledger: list = field(default_factory=list)      # tracked picks (props/ledger.py), graded; filled by the CLI with --history
 
 
 def build(season: int | None = None, weeks: list[int] | None = None, refresh: bool = False,

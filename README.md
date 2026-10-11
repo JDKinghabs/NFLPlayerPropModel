@@ -20,7 +20,7 @@ pip install -r requirements.txt
 python -m props                    # earliest week with games still to play
 python -m props --weeks 5          # a specific week (or several: --weeks 4 5)
 python -m props --refresh          # force a re-download (data is cached for 3h in data/raw/)
-pytest                             # 107 tests
+pytest                             # 113 tests
 ```
 
 Output goes to `output/NFL_Props_<season>_Wk<weeks>.xlsx`. Only games that have **not kicked off** are shown.
@@ -72,6 +72,15 @@ put it in code. Without a key, nothing is pulled and the board shows the watchli
 
 Every research card is pre-filled with the DraftKings line, so its Over/Under lean shows without typing; the TD tab shows the
 DraftKings price and edge on every row.
+
+### Tracked picks (`history/ledger/`)
+
+To keep score, a week's card is logged on request: `python -m props.ledger log --snapshot history/<season>/<build>.json --top 10`
+copies the first 10 picks (board order) from one archived pre-kickoff snapshot into `history/ledger/<season>.json`, with the line,
+price, model and book probability frozen and the source snapshot's hash for the audit trail. Every refresh grades pending picks
+against the same results the site uses (yardage: actual vs line, push on the number; anytime TD: 1+ rushing or receiving TD; no
+stat line = void), 1 unit each at the logged price, and the archive step commits the file. The Top plays tab shows the latest
+card with each pick's result and the record (W-L, units, ROI). `python -m props.ledger show` prints it.
 
 ## Line log (older format)
 
@@ -305,7 +314,7 @@ next game 67% of the time, and a Questionable player who sat is out again 52% (1
 ```
 props/        config.py (all constants) | data.py | slate.py | defense.py | gamescript.py | snaps.py | volume.py | touches.py | qbout.py | availability.py
               td.py (Sheet 3: anytime TD) + td_model.json (fitted by research/fit_td_model.py) | history.py (frozen prediction snapshots)
-              odds.py (DraftKings lines: pull, save, match) | picks.py (Top plays: edges, grades, watchlist) | scorecard.py | linelog.py
+              odds.py (DraftKings lines: pull, save, match) | picks.py (Top plays: edges, grades, watchlist) | ledger.py (tracked picks) | scorecard.py | linelog.py
               elite.py (Sheet 1) | backups.py (Sheet 2) | workbook.py | site.py | results.py | calibration.py (+ calibration.json) | pipeline.py | __main__.py
 .github/      workflows/refresh.yml (scheduled rebuild + DraftKings pull + Pages deploy + archive commit) | line-log.yml (manual)
 history/      frozen pre-game predictions and odds pulls (history/odds/), written by the workflow (see history/README.md)

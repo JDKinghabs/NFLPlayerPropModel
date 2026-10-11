@@ -75,7 +75,8 @@ border-radius:var(--r);padding:14px 16px;margin:0 0 10px}
 .pwhy{grid-column:2/4;color:var(--muted);font-size:12.5px;margin-top:4px}
 .pfoot{grid-column:2/4;display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin-top:8px;font-size:12.5px}
 .plink{color:var(--info);text-decoration:none;font-weight:650}.plink:hover{text-decoration:underline}
-.watch{margin-top:26px}.watch h3{font-size:15px;margin:0 0 2px}.watch>p{margin:0 0 10px;color:var(--muted);font-size:12.5px}
+.watch,.tracked{margin-top:26px}.watch h3,.tracked h3{font-size:15px;margin:0 0 2px}.watch>p,.tracked>p{margin:0 0 10px;color:var(--muted);font-size:12.5px}
+.tracked .st.W{color:var(--pos)}.tracked .st.L{color:var(--neg)}.tracked .st.P,.tracked .st.void,.tracked .st.pend{color:var(--muted)}
 .wrow{display:grid;grid-template-columns:1fr auto;gap:2px 14px;align-items:center;padding:10px 14px;background:var(--surface);
 border:1px solid var(--line);border-radius:10px;margin:0 0 6px;font-size:13.5px}
 .wrow .wt{font-weight:700}.wrow .wtgt{text-align:right;font-weight:750;white-space:nowrap}.wsub{color:var(--muted);font-size:12px}
@@ -715,6 +716,38 @@ def _watch_row(w: dict) -> str:
             f'&middot; {sub}</div></div><div class="wtgt">{right}</div></div>')
 
 
+def _tracked(res) -> str:
+    """The logged card(s) (props/ledger.py): this season's record, then the latest week's picks with their result."""
+    from .ledger import summary
+    entries = getattr(res, "ledger", None) or []
+    if not entries:
+        return ""
+    wk = max(e["week"] for e in entries)
+    cur = [e for e in entries if e["week"] == wk]
+
+    def rec(s):
+        r = f'{s["w"]}-{s["l"]}' + (f'-{s["p"]}' if s["p"] else "")
+        if s["w"] + s["l"] + s["p"]:
+            r += f' &middot; {s["units"]:+.2f}u &middot; ROI {s["roi"]:+.0%}'
+        return r + (f' &middot; {s["pending"]} pending' if s["pending"] else "") + (f' &middot; {s["void"]} void' if s["void"] else "")
+
+    rows = []
+    for e in sorted(cur, key=lambda e: e["rank"]):
+        bet = f'{e["side"]} {e["line"]:g}' if e.get("line") is not None else e["side"]
+        o = e.get("outcome")
+        st = f'Won {e["units"]:+.2f}u' if o == "W" else {"L": "Lost -1u", "P": "Push", "void": "Void (no stat line)"}.get(o, "Pending")
+        act = f' &middot; actual {e["actual"]:g}' if e.get("actual") is not None else ""
+        rows.append(f'<div class="wrow"><div><span class="wt">{escape(e["name"])}</span><span class="tm">{escape(e["team"])}</span> '
+                    f'<span class="pmkt">{e["grade"]} &middot; {escape(e["label"])}</span><div class="wsub">{escape(bet)} at '
+                    f'{e["price"]:+d} &middot; model {e["p"]:.0%} vs book {e["implied"]:.0%} &middot; {escape(e["kick_txt"])}{act}</div></div>'
+                    f'<div class="wtgt"><span class="st {o or "pend"}">{st}</span></div></div>')
+    season = rec(summary(entries)) if len({e["week"] for e in entries}) > 1 else ""
+    logged = _et(cur[0].get("source_built")) if cur[0].get("source_built") else ""
+    return (f'<section class="tracked" id="tracked"><h3>Tracked picks &middot; week {wk} card: {rec(summary(cur))}</h3>'
+            f'<p>The top {len(cur)} plays as the board had them at {escape(logged)}, frozen and graded automatically once the games '
+            f'are final (1 unit each at the logged price).' + (f' Season: {season}.' if season else "") + f'</p>{"".join(rows)}</section>')
+
+
 def _board(res) -> str:
     picks, watch, om = getattr(res, "picks", None) or [], getattr(res, "watch", None) or [], res.meta.get("odds") or {}
     n_a = sum(p["grade"] == "A" for p in picks)
@@ -744,7 +777,7 @@ def _board(res) -> str:
            f'book\'s, or a player whose touches this season are well below what the model assumes) there is no pick: that gap is '
            f'usually news the model has not seen, so check it on the other tabs. Prices move: '
            f'check the number before you bet.</p></details>')
-    return f'<div class="board">{head}{body}{wl}{how}</div>'
+    return f'<div class="board">{head}{body}{wl}{_tracked(res)}{how}</div>'
 
 
 def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> str:
