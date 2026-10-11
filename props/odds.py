@@ -2,7 +2,7 @@
 
 One puller for the whole project. The refresh build pulls only when it matters:
   auto   games kicking off within ODDS_WINDOW_HOURS that were not pulled in the last ODDS_REPULL_HOURS
-         (the Sunday 7am ET run gets Sunday's games, the Thursday / Monday morning runs get TNF / MNF)
+         (the first Sunday-morning run gets Sunday's games, the Thursday / Monday morning runs get TNF / MNF)
   force  every game left in the first slate week (the manual "pull lines now" run)
   off    nothing
 Every US book's lines are saved to history/odds/<season>/<UTC pull time>.json (the archive step commits them), so later

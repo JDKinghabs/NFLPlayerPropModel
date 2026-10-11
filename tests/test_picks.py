@@ -35,12 +35,20 @@ def yline(point, over=-110, under=-110, teams=("AAA", "BBB")):
 
 def test_the_better_side_is_taken_and_priced_against_the_book():
     elite = {"WR": pd.DataFrame([player("low", 50, ypg=80)]), "QB": pd.DataFrame(), "RB": pd.DataFrame()}
-    priced, unpriced = P.yard_candidates(elite, {("low", "WR"): [yline(70.5)]}, CALIB)
+    priced, unpriced = P.yard_candidates(elite, {("low", "WR"): [yline(60.5)]}, CALIB)
     c = priced[0]
-    assert c["side"] == "Under" and c["line"] == 70.5 and c["price"] == -110 and not unpriced
-    assert c["p"] == pytest.approx(1 - P._p_over(CALIB, "WR", 50, 70.5)) and c["edge"] == pytest.approx(c["p"] - P.implied(-110))
+    assert c["side"] == "Under" and c["line"] == 60.5 and c["price"] == -110 and not unpriced
+    assert c["p"] == pytest.approx(1 - P._p_over(CALIB, "WR", 50, 60.5)) and c["edge"] == pytest.approx(c["p"] - P.implied(-110))
     assert c["grade"] == "A" and c["ev"] > 0 and c["label"] == "Rec yds" and c["book"] == "DraftKings"
-    assert c["reasons"][0] == "proj 50 vs line 70.5" and "hot start, regresses" in c["reasons"][1]
+    assert c["reasons"][0] == "proj 50 vs line 60.5" and "hot start, regresses" in c["reasons"][1]
+
+
+def test_no_yardage_pick_when_the_book_is_far_from_the_model():
+    elite = {"WR": pd.DataFrame([player("far", 62.5), player("near", 62.5)])}
+    lines = {("far", "WR"): [yline(80.5)], ("near", "WR"): [yline(74.5)]}               # 29% away vs 19% away
+    by = {c["pid"]: c for c in P.yard_candidates(elite, lines, CALIB)[0]}
+    assert by["far"]["edge"] > by["near"]["edge"] > C.PICK_EDGE["WR"][0]                 # the bigger gap looks like more edge...
+    assert by["far"]["grade"] is None and by["near"]["grade"] == "A"                     # ...but is likelier news the model lacks
 
 
 def test_a_flagged_qb_blocks_the_over_and_likely_out_players_are_skipped():
@@ -53,7 +61,7 @@ def test_a_flagged_qb_blocks_the_over_and_likely_out_players_are_skipped():
 
 def td_row(pid, p, team="AAA", game="g1", **kw):
     return dict(player_id=pid, name=pid.upper(), team=team, opp_txt="BBB", kick_txt="Sun 1p", kickoff=KICK, week=5, game_id=game,
-                p_td=p, xtd=0.7, pg_touch=20.0, tt=25.5, inj="", p_out=0.0, role_up=False, **kw)
+                p_td=p, xtd=0.7, pg_touch=20.0, cur_touch=kw.pop("cur_touch", 20.0), tt=25.5, inj="", p_out=0.0, role_up=False, **kw)
 
 
 def test_td_picks_need_a_real_chance_not_just_a_big_longshot_edge():
@@ -64,6 +72,18 @@ def test_td_picks_need_a_real_chance_not_just_a_big_longshot_edge():
     by = {c["pid"]: c for c in priced}
     assert by["cook"]["grade"] == "A" and by["cook"]["side"] == "Yes" and by["cook"]["fair"] == "-144"
     assert by["fb"]["edge"] > 0.1 and by["fb"]["grade"] is None                       # 15% vs a +4000 price: not trusted
+
+
+def test_no_td_pick_when_the_book_is_far_off_or_his_role_has_shrunk():
+    td = {"RB": pd.DataFrame([td_row("ok", 0.30), td_row("gap", 0.21), td_row("stale", 0.30, cur_touch=5.0),
+                              td_row("new", 0.30, cur_touch=float("nan"))])}
+    yes = {"ok": 400, "gap": 1600, "stale": 400, "new": 400}                          # 20% / 6% / 20% / 20% implied
+    lines = {(k, "TD"): [dict(kickoff=KICK_UTC, teams=["AAA", "BBB"], yes=v)] for k, v in yes.items()}
+    by = {c["pid"]: c for c in P.td_candidates(td, lines)[0]}
+    assert by["ok"]["grade"] == "A"
+    assert by["gap"]["edge"] > 0.1 and by["gap"]["grade"] is None                     # 21% vs +1600 (6%): 3.5x the book
+    assert by["stale"]["grade"] is None                                               # 5 touches/g this season vs 20 assumed
+    assert by["new"]["grade"] is None                                                 # no games this season: the book knows more
 
 
 def cand(pid, grade, ev, game="g1"):

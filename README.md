@@ -20,7 +20,7 @@ pip install -r requirements.txt
 python -m props                    # earliest week with games still to play
 python -m props --weeks 5          # a specific week (or several: --weeks 4 5)
 python -m props --refresh          # force a re-download (data is cached for 3h in data/raw/)
-pytest                             # 105 tests
+pytest                             # 107 tests
 ```
 
 Output goes to `output/NFL_Props_<season>_Wk<weeks>.xlsx`. Only games that have **not kicked off** are shown.
@@ -34,8 +34,10 @@ yards and anytime TD. Set the key as the repository secret **`ODDS_API_KEY`** (S
 put it in code. Without a key, nothing is pulled and the board shows the watchlist only.
 
 - **Credits.** The free plan has 500 credits a month and each game costs one credit per market (four). The workflow only pulls games
-  kicking off within 18 hours that were not pulled in the last 6: the Thursday 7am ET run gets TNF, Sunday 7am ET gets Sunday's games,
-  Monday 7am ET gets MNF. About 64 credits a week. It stops if fewer than 40 credits remain. For an extra pull (say Friday), run the
+  kicking off within 18 hours that were not pulled in the last 10: the Thursday 7am ET run gets TNF, the first Sunday-morning run gets
+  Sunday's games, Monday 7am ET gets MNF. About 64 credits a week. GitHub starts scheduled runs late, often by hours, so the crons sit
+  off the hour and Sunday has five tries between 5am and 10:45am ET (only the first one that runs pays for lines); runs queue rather
+  than cancel each other, so a pull is never paid for and then thrown away. It stops if fewer than 40 credits remain. For an extra pull (say Friday), run the
   workflow by hand with `pull_odds = force` (every game left this week, ~60 credits).
 - **Saved.** Each pull is written to `history/odds/<season>/<UTC time>.json` (every US book, not just DraftKings) and committed by the
   archive step, so it doubles as a line log for closing-line work later. Builds reuse the latest pull for games not yet started and
@@ -60,7 +62,12 @@ put it in code. Without a key, nothing is pulled and the board shows the watchli
 
 4. **Rules**: a WR whose starting QB carries the first-missed-game flag cannot be an Over; one pick per player, three per game;
    A before B, then by EV; at most 15. A thin week shows fewer, never padded.
-5. **Watchlist**: top spots whose game has no DraftKings line yet get a target number instead of a grade, solved from the same
+5. **When the book is far from the model, no pick.** A yardage line more than 25% from the projection, a TD chance more than 1.6x
+   the book's, or a player whose touches per game this season are under 60% of what the TD model assumes (or who has not played
+   this season) gets no grade. On the first live pull (Oct 11, 2026) these were exactly the bad cases: +700 to +1600 TD longshots on
+   backups whose usage came from last season (one had a single touch all year) and receivers whose role had changed. A gap that big
+   is usually news the model has not seen. The players are still on the research tabs with the line filled in.
+6. **Watchlist**: top spots whose game has no DraftKings line yet get a target number instead of a grade, solved from the same
    distribution at break-even (-110) plus the B margin ("Under at 92.5 or higher", "Yes at +210 or better").
 
 Every research card is pre-filled with the DraftKings line, so its Over/Under lean shows without typing; the TD tab shows the

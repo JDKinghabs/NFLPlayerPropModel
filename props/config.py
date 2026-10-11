@@ -76,9 +76,9 @@ QB_OUT_EFFECT = {"WR": {"yards": -0.22, "targets": -0.12, "receptions": -0.12, "
 
 # ---- Sportsbook lines (props/odds.py) ------------------------------------------------------------------------------
 ODDS_BOOK = "draftkings"       # picks use this book's prices; every US book's lines are still saved for research
-ODDS_WINDOW_HOURS = 18         # auto pull = games kicking off within this many hours: Sunday 7am ET run -> Sunday's games,
+ODDS_WINDOW_HOURS = 18         # auto pull = games kicking off within this many hours: first Sunday-morning run -> Sunday's games,
                                # Thursday / Monday morning runs -> TNF / MNF.  About 64 credits a week on the free plan (~500/month)
-ODDS_REPULL_HOURS = 6          # ...that were not already pulled in the last few hours
+ODDS_REPULL_HOURS = 10         # ...that were not already pulled in the last 10h (covers the spread of Sunday-morning runs)
 ODDS_MIN_REMAINING = 40        # stop pulling when the plan has fewer credits left than this
 
 # ---- Top plays (props/picks.py) ------------------------------------------------------------------------------------
@@ -89,6 +89,11 @@ PICK_EDGE = {"QB": (0.10, 0.07), "RB": (0.08, 0.05), "WR": (0.08, 0.05), "TD": (
 PICK_MAX = 15                  # most picks on the board (a thin week shows fewer; it is never padded)
 PICK_PER_GAME = 3              # outcomes in one game move together: at most this many picks per game
 PICK_MAX_P_OUT = 0.5           # no pick on a player more likely out than in
+PICK_MAX_GAP = 0.25            # [assumed] no yardage pick when the book's line is more than 25% away from the projection, and
+PICK_TD_MAX_RATIO = 1.6        # [assumed] no TD pick when the model's chance is over 1.6x the book's: a gap that big is far
+                               # likelier news the model has not seen (a role change, an injury) than an edge
+PICK_TD_MIN_ROLE = 0.6         # [assumed] no TD pick when his touches per game THIS season are under 60% of the usage the model
+                               # assumes (that usage leans on last season), or he has not played this season
 PICK_TD_MIN_P = 0.20           # [assumed] no anytime-TD pick below this model chance: on a longshot a 2-3 point calibration error is a
                                # huge relative error (e.g. a fullback at 15% vs a +4000 price looked like a 12-point edge)
 WATCH_MAX = 10                 # watchlist rows (players whose game has no DraftKings line yet)
