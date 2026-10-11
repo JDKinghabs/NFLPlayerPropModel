@@ -169,10 +169,10 @@ def td_candidates(td: dict, lines: dict) -> tuple[list, list]:
             e, v = p - implied(price), ev(p, price)
             cur = r.get("cur_touch")
             role_ok = cur is not None and not pd.isna(cur) and cur >= C.PICK_TD_MIN_ROLE * r["pg_touch"]
-            ok = p >= C.PICK_TD_MIN_P and p <= C.PICK_TD_MAX_RATIO * implied(price) and role_ok
+            ok = p >= C.PICK_TD_MIN_P and p <= C.PICK_TD_MAX_RATIO * implied(price) and role_ok     # the guards
             gr = grade("TD", e, v) if ok else None
             priced.append({**_base(r, "TD", "td"), "pos": g, "side": "Yes", "line": None, "price": price, "p": p,
-                           "implied": implied(price), "edge": e, "ev": v, "fair": fair_odds(p), "proj": None, "grade": gr,
+                           "implied": implied(price), "edge": e, "ev": v, "fair": fair_odds(p), "proj": None, "grade": gr, "trusted": ok,
                            "reasons": td_reasons(r), "book": BOOK_NAME.get(C.ODDS_BOOK, C.ODDS_BOOK),
                            "updated": ln.get("updated")})
     return priced, unpriced
@@ -225,32 +225,53 @@ def watchlist(unpriced_yards: list, unpriced_td: list, lines: dict, cal: dict) -
     return yards + tds
 
 
-def td_parlays(cands: list, n: int = C.PARLAY_N, legs: int = C.PARLAY_LEGS) -> list:
-    """Up to n parlays of `legs` graded anytime-TD picks.  Best EV first, every leg from a different game (same-game TDs are
-    correlated and books price those parlays differently), no player in two parlays.  A thin week gets fewer, never padded.
-    Model chance = product of the legs' P(TD); the price is the product of their decimal odds."""
-    pool = sorted((c for c in cands if c["kind"] == "td" and c["grade"]), key=lambda c: -c["ev"])
-    out, used = [], set()
-    for _ in range(n):
+PARLAY_TYPES = ("Best chance", "Balanced", "Best value")
+
+
+def _letter(x: float, cut: tuple) -> str:
+    return "A" if x >= cut[0] else "B" if x >= cut[1] else "C"
+
+
+def td_parlays(cands: list, legs: int = C.PARLAY_LEGS) -> list:
+    """Three TD parlays along the line from likeliest to best value: "Best chance" takes the legs most likely to score,
+    "Best value" the legs with the most EV, "Balanced" the best average of the two ranks.  Legs: any anytime-TD price the model
+    rates at or above the book (PARLAY_MIN_EDGE, not the Top plays bar) that passes the same guards; every leg from a different
+    game (same-game TDs are correlated and books price those parlays differently); two parlays share at most PARLAY_MAX_SHARED
+    legs.  Model chance = product of the legs' P(TD); price = product of their decimal odds.  A profile that cannot be filled
+    is left out, never padded.  Each parlay is graded twice: hit chance and value (PARLAY_HIT_GRADE / PARLAY_VALUE_GRADE)."""
+    pool = [c for c in cands if c["kind"] == "td" and c.get("trusted") and c["edge"] >= C.PARLAY_MIN_EDGE and c["ev"] >= 0]
+    if len(pool) < legs:
+        return []
+    by_p = {c["pid"]: i for i, c in enumerate(sorted(pool, key=lambda c: -c["p"]))}
+    by_v = {c["pid"]: i for i, c in enumerate(sorted(pool, key=lambda c: -c["ev"]))}
+    order = {"Best chance": lambda c: (-c["p"], -c["ev"]), "Best value": lambda c: (-c["ev"], -c["p"]),
+             "Balanced": lambda c: (by_p[c["pid"]] + by_v[c["pid"]], -c["p"])}
+    built = {}
+    for kind in ("Best chance", "Best value", "Balanced"):          # the two ends first, then the middle between them
         chosen, games = [], set()
-        for c in pool:
-            if c["pid"] in used or c["game"] in games or any(c["pid"] == x["pid"] for x in chosen):
+        for c in sorted(pool, key=order[kind]):
+            if c["game"] in games or any(c["pid"] == x["pid"] for x in chosen):
+                continue
+            pids = {x["pid"] for x in chosen} | {c["pid"]}
+            if any(len(pids & {l["pid"] for l in b["legs"]}) > C.PARLAY_MAX_SHARED for b in built.values()):
                 continue
             chosen.append(c)
             games.add(c["game"])
             if len(chosen) == legs:
                 break
         if len(chosen) < legs:
-            break
-        used |= {c["pid"] for c in chosen}
+            continue
         dec, p = 1.0, 1.0
         for c in chosen:
             dec, p = dec * decimal(c["price"]), p * c["p"]
-        out.append({"rank": len(out) + 1, "p": p, "dec": dec, "price": american(dec), "implied": 1 / dec, "edge": p - 1 / dec,
-                    "ev": p * dec - 1, "book": chosen[0]["book"],
-                    "legs": [{k: c.get(k) for k in ("pid", "name", "team", "pos", "opp_txt", "kick_txt", "kickoff", "week", "price",
-                                                    "p", "implied", "edge", "grade", "inj", "updated")} for c in chosen]})
-    return out
+        ev_ = p * dec - 1
+        built[kind] = {"type": kind, "p": p, "dec": dec, "price": american(dec), "implied": 1 / dec, "edge": p - 1 / dec,
+                       "ev": ev_, "hit_grade": _letter(p, C.PARLAY_HIT_GRADE), "value_grade": _letter(ev_, C.PARLAY_VALUE_GRADE),
+                       "book": chosen[0]["book"],
+                       "legs": [{k: c.get(k) for k in ("pid", "name", "team", "pos", "opp_txt", "kick_txt", "kickoff", "week",
+                                                       "price", "p", "implied", "edge", "ev", "grade", "inj", "updated")}
+                                for c in chosen]}
+    return [{**built[k], "rank": i + 1} for i, k in enumerate(t for t in PARLAY_TYPES if t in built)]
 
 
 def make(elite_all: dict, td: dict, lines: dict, cal: dict | None) -> tuple[list, list]:

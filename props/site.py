@@ -138,6 +138,10 @@ text-transform:uppercase;letter-spacing:.06em}.parlay .ppr{font-size:22px;font-w
 .parlay ol{margin:0 0 8px;padding-left:18px}.parlay li{margin:4px 0}.parlay li a{color:var(--text);font-weight:700;text-decoration:none}
 .parlay li a:hover{text-decoration:underline}.parlay .lsub{display:block;color:var(--muted);font-size:12px}
 .parlay .pos{color:var(--pos)}.parlay .neg{color:var(--neg)}
+.parlay .pgr{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.parlay .pg{font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px;
+border:1px solid var(--line);color:var(--muted)}.parlay .pg.A{color:var(--pos);border-color:var(--pos)}.parlay .pg.B{color:var(--text)}
+.parlay .lg{font-size:10.5px;font-weight:750;padding:1px 6px;border-radius:6px;margin-right:4px;color:var(--faint);border:1px solid var(--line)}
+.parlay .lg.A{background:var(--pos);color:#052e14;border-color:var(--pos)}.parlay .lg.B{color:var(--pos);border-color:var(--pos)}
 .parlay .pft{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:7px}.parlay .pft b{color:var(--text)}
 .tdwk{font-size:11px;font-weight:750;color:var(--faint);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.07em}
 .tdrow{display:grid;grid-template-columns:2em 1fr auto;gap:4px 10px;align-items:center;background:var(--surface);border:1px solid var(--line);
@@ -643,28 +647,35 @@ def _td_row(r, season, lines=None, picked=None) -> str:
 
 
 def _parlays(res) -> str:
-    """TD parlays (props/picks.py::td_parlays): legs from graded TD picks in different games, priced at the book."""
+    """TD parlays (props/picks.py::td_parlays): best chance, balanced and best value, each graded on hit chance and on value."""
     parlays, om = getattr(res, "parlays", None) or [], res.meta.get("odds") or {}
     legs = C.PARLAY_LEGS
-    head = (f'<h3>TD parlays</h3><p>{C.PARLAY_N} parlays of {legs} graded anytime-TD picks, best value first. Every leg is from a '
-            f'different game (same-game TDs move together and {BOOK} prices those parlays differently), and no player is in two. '
-            f'The price is the product of the legs\' prices; check it on your slip. Even with an edge, a {legs}-leg TD parlay '
-            f'usually loses: the chance is shown on each.</p>')
+    hc, vc = C.PARLAY_HIT_GRADE, C.PARLAY_VALUE_GRADE
+    head = (f'<h3>TD parlays</h3><p>Three {legs}-leg parlays from likeliest to best value. A leg needs the model at or above '
+            f'{BOOK}\'s price and the same guards as Top plays, but not the Top plays edge bar (legs that clear it carry their '
+            f'A/B). Every leg is from a different game (same-game TDs move together and {BOOK} prices those parlays differently); '
+            f'two parlays share at most {C.PARLAY_MAX_SHARED} leg. <b>Hit</b> grade: A at {hc[0]:.0%}+, B at {hc[1]:.0%}+. '
+            f'<b>Value</b> grade (EV per 1u): A at {vc[0]:+.2f}u+, B at {vc[1]:+.2f}u+. The price is the product of the legs\' '
+            f'prices; check it on your slip. Even the likeliest one usually loses.</p>')
     if not parlays:
         msg = (f"No {BOOK} lines yet: parlays appear once lines are pulled." if not om.get("book_lines") else
-               f"Not enough graded TD picks in different games for a {legs}-leg parlay right now.")
+               f"Not enough TD legs in different games at a fair price for a {legs}-leg parlay right now.")
         return f'<section class="parlays" id="parlays">{head}<div class="empty">{msg}</div></section>'
     cards = []
     for x in parlays:
         items = []
         for leg in x["legs"]:
             cid = _card_id("t", "TD", leg["pid"], leg["week"])
+            tag = f'<span class="lg {leg["grade"]}">{leg["grade"]}</span>' if leg.get("grade") else '<span class="lg">lean</span>'
             items.append(f'<li><a href="#{cid}" data-goto="{cid}" data-tab="p4">{escape(leg["name"])}</a> '
-                         f'<span class="tm">{escape(leg["team"])}</span> {_inj_chip(leg.get("inj"))}'
+                         f'<span class="tm">{escape(leg["team"])}</span> {tag}{_inj_chip(leg.get("inj"))}'
                          f'<span class="lsub">Yes {leg["price"]:+d} &middot; model {leg["p"]:.0%} vs book {leg["implied"]:.0%} &middot; '
                          f'{escape(_opp(leg))} &middot; {escape(leg["kick_txt"])}</span></li>')
-        cards.append(f'<article class="parlay"><div class="phd"><span class="ptl">Parlay {x["rank"]}</span>'
+        one_in = f"1 in {round(1 / x['p'])}" if x["p"] > 0 else ""
+        cards.append(f'<article class="parlay"><div class="phd"><span class="ptl">{escape(x["type"])}</span>'
                      f'<span class="ppr">{x["price"]:+d}</span><span class="pbook">{escape(x["book"])}</span></div>'
+                     f'<div class="pgr"><span class="pg {x["hit_grade"]}">Hit {x["hit_grade"]} &middot; {x["p"]:.1%} ({one_in})</span>'
+                     f'<span class="pg {x["value_grade"]}">Value {x["value_grade"]} &middot; {x["ev"]:+.2f}u</span></div>'
                      f'<ol>{"".join(items)}</ol><div class="pft">Model <b>{x["p"]:.1%}</b> vs book {x["implied"]:.1%} '
                      f'&middot; EV <b class="{"pos" if x["ev"] > 0 else "neg"}">{x["ev"]:+.2f}u</b> per 1u</div></article>')
     return f'<section class="parlays" id="parlays">{head}<div class="plist">{"".join(cards)}</div></section>'
