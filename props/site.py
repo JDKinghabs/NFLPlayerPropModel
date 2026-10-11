@@ -726,7 +726,7 @@ def _board(res) -> str:
         body = (f'<div class="empty">No play clears the bar against the current {BOOK} prices. That is the model declining to '
                 f'guess, not a fault: every player is still on the other tabs.</div>')
     else:
-        body = (f'<div class="empty">No {BOOK} lines yet. They are pulled on game days (Sunday 7am ET for Sunday\'s games, '
+        body = (f'<div class="empty">No {BOOK} lines yet. They are pulled on game days (early Sunday morning for Sunday\'s games, '
                 f'Thursday and Monday mornings for the night games). Until then the watchlist below has the numbers to look for.</div>')
     wl = ""
     if watch:
@@ -739,7 +739,10 @@ def _board(res) -> str:
            f'<b>A</b> needs {e["RB"][0] * 100:.0f} / {e["QB"][0] * 100:.0f} / {e["TD"][0] * 100:.0f}. Those sit at about 1x and 1.6x each '
            f'market\'s calibration error, so a B is roughly the smallest edge the model can tell apart from noise. They are assumptions '
            f'until the scorecard has a season of results. No TD pick below a {C.PICK_TD_MIN_P:.0%} chance (longshots magnify small errors), '
-           f'at most one pick per player and {C.PICK_PER_GAME} per game, and never an Over on a WR whose QB may miss. Prices move: '
+           f'at most one pick per player and {C.PICK_PER_GAME} per game, and never an Over on a WR whose QB may miss. When {BOOK} is far '
+           f'from the model (a line more than {C.PICK_MAX_GAP:.0%} from the projection, a TD chance over {C.PICK_TD_MAX_RATIO:g}x the '
+           f'book\'s, or a player whose touches this season are well below what the model assumes) there is no pick: that gap is '
+           f'usually news the model has not seen, so check it on the other tabs. Prices move: '
            f'check the number before you bet.</p></details>')
     return f'<div class="board">{head}{body}{wl}{how}</div>'
 

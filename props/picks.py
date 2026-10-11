@@ -133,9 +133,10 @@ def yard_candidates(elite_all: dict, lines: dict, cal: dict) -> tuple[list, list
                 continue
             side, p, price = max(sides, key=lambda s: ev(s[1], s[2]))
             e, v = p - implied(price), ev(p, price)
+            far = abs(ln["point"] - r["proj"]) > C.PICK_MAX_GAP * r["proj"]        # book far from the model: likely news it lacks
             priced.append({**_base(r, market, "yards"), "side": side, "line": ln["point"], "price": price, "p": p,
                            "implied": implied(price), "edge": e, "ev": v, "fair": fair_odds(p), "proj": float(r["proj"]),
-                           "grade": grade(market, e, v), "reasons": yard_reasons(r, ln["point"]),
+                           "grade": None if far else grade(market, e, v), "reasons": yard_reasons(r, ln["point"]),
                            "book": BOOK_NAME.get(C.ODDS_BOOK, C.ODDS_BOOK), "updated": ln.get("updated")})
     return priced, unpriced
 
@@ -155,7 +156,10 @@ def td_candidates(td: dict, lines: dict) -> tuple[list, list]:
                 continue
             p, price = float(r["p_td"]), ln["yes"]
             e, v = p - implied(price), ev(p, price)
-            gr = grade("TD", e, v) if p >= C.PICK_TD_MIN_P else None
+            cur = r.get("cur_touch")
+            role_ok = cur is not None and not pd.isna(cur) and cur >= C.PICK_TD_MIN_ROLE * r["pg_touch"]
+            ok = p >= C.PICK_TD_MIN_P and p <= C.PICK_TD_MAX_RATIO * implied(price) and role_ok
+            gr = grade("TD", e, v) if ok else None
             priced.append({**_base(r, "TD", "td"), "pos": g, "side": "Yes", "line": None, "price": price, "p": p,
                            "implied": implied(price), "edge": e, "ev": v, "fair": fair_odds(p), "proj": None, "grade": gr,
                            "reasons": td_reasons(r), "book": BOOK_NAME.get(C.ODDS_BOOK, C.ODDS_BOOK),

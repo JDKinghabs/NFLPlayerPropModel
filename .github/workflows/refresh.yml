@@ -5,15 +5,23 @@ name: Refresh site
 #
 # Each build also saves a frozen snapshot of its pre-game predictions to history/ and commits it back to the branch it ran on
 # (see props/history.py).  That step is last and non-blocking: if it fails, the site has already been built and still publishes.
-# Sportsbook lines (props/odds.py) are pulled here, only when games are close: the 7am ET run on Sunday gets Sunday's games,
-# the Thursday / Monday morning runs get TNF / MNF (about 64 credits a week).  Run it by hand with pull_odds=force for an
-# extra pull.  Pulls are saved under history/odds/ and committed by the same archive step.
+# Sportsbook lines (props/odds.py) are pulled here, only when games are close (within 18h): the first Sunday-morning run gets
+# Sunday's games, the Thursday / Monday morning runs get TNF / MNF (about 64 credits a week).  A game is not pulled again for
+# 10h, so the extra Sunday runs only rebuild the site.  Run it by hand with pull_odds=force for an extra pull.  Pulls are saved
+# under history/odds/ and committed by the same archive step.
+#
+# GitHub starts scheduled runs late, often by hours (3.5-6h in October 2026) and worst at the top of the hour.  So the crons
+# sit off the hour, and Sunday has several tries from 5am ET so one lands before the 9:30am ET London games.
 
 on:
   schedule:
-    - cron: "0 11 * * *"      # daily ~7am ET (stats finalise after Monday night; injury news lands daily)
-    - cron: "0 22 * * 3,5"    # Wed + Fri ~6pm ET, right after the injury reports are published
-    - cron: "0 16 * * 0"      # Sunday ~noon ET, after inactives are announced
+    - cron: "13 11 * * *"     # daily ~7am ET (stats finalise after Monday night; injury news lands daily; TNF / MNF lines)
+    - cron: "43 22 * * 3,5"   # Wed + Fri ~6:45pm ET, right after the injury reports are published
+    - cron: "13 9 * * 0"      # Sunday ~5am, 6:45am, 8:15am, 9:45am and 10:45am ET: the first one that runs pulls Sunday's
+    - cron: "43 10 * * 0"     # lines; the rest rebuild with them (all inside the 10h no-repull window)
+    - cron: "13 12 * * 0"
+    - cron: "43 13 * * 0"
+    - cron: "43 14 * * 0"
   workflow_dispatch:
     inputs:
       pull_odds:
@@ -32,7 +40,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false   # queue, never cancel: a cancelled run may already have spent credits on a pull it never saved
 
 jobs:
   build:

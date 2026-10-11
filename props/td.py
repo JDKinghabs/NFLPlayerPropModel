@@ -229,6 +229,7 @@ def td_table(stats, prev_stats, pbp, prev_pbp, roster, slate, pout_by_week, mode
 
     m["name"] = m.player_display_name
     m["xtd"] = m.pg_rush_xtd + m.pg_tgt_xtd
+    m["cur_touch"] = m.player_id.map(cur_u.groupby("player_id").touch.mean() if len(cur_u) else {})  # this season, games played
     m["fair"] = m.p_td.map(fair_odds)
     m["role_up"] = m.player_id.isin(set(backup_ids))
     m["note"] = np.where(m.role_up, "Starter out: role may be bigger than his average", "")
