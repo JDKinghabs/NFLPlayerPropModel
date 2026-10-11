@@ -80,9 +80,10 @@ def snapshot(res) -> dict:
     picks = [{k: v for k, v in p.items() if k not in ("game",)} for p in getattr(res, "picks", None) or []
              if p.get("kickoff") and p["kickoff"] > built]
     backup = [r for k in C.CATS for r in _rows(res.backups.get(k), BACKUP_FIELDS, built, k)]
+    parlays = [x for x in getattr(res, "parlays", None) or [] if all(leg.get("kickoff") and leg["kickoff"] > built for leg in x["legs"])]
     body = {"version": VERSION, "season": int(res.season), "weeks": [int(w) for w in m.get("weeks", [])],
             "model": {"yardage": m.get("model", C.MODEL_VERSION), "td": m.get("td_model", "")},
-            "td": td, "elite": elite, "backup": backup, "picks": picks}
+            "td": td, "elite": elite, "backup": backup, "picks": picks, "parlays": parlays}
     digest = hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:16]
     return {**body, "built": built, "hash": digest, "code_sha": os.environ.get("GITHUB_SHA", "")}
 

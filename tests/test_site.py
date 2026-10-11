@@ -255,3 +255,20 @@ def test_board_shows_the_tracked_card_with_its_record():
     assert "Won &lt;Guy&gt;" in html and "Won +0.91u" in html and "Lost -1u" in html and "Pending" in html
     assert "Yes at +425" in html and "actual 41" in html
     assert 'id="tracked"' not in render(board_result())                             # nothing logged: no section
+
+
+def test_td_tab_shows_parlays_or_says_why_not():
+    leg = dict(pid="00-9", name="Leg <One>", team="IND", pos="WR", opp_txt="@PIT", kick_txt="Sun 1p", kickoff="2026-10-11T17:00:00Z",
+               week=5, price=425, p=0.27, implied=0.19, edge=0.08, ev=0.4, grade="A", inj="", updated=None)
+    res = board_result()
+    res.parlays = [dict(rank=1, type="Best chance", p=0.059, dec=23.09, price=2209, implied=0.0433, edge=0.016, ev=0.37,
+                        hit_grade="B", value_grade="B", book="DraftKings",
+                        legs=[leg, {**leg, "pid": "00-8", "name": "Two", "grade": None}, {**leg, "pid": "00-7", "name": "Three"}])]
+    html = render(res)
+    assert 'id="parlays"' in html and "Best chance" in html and "+2209" in html and "Leg &lt;One&gt;" in html
+    assert "Hit B &middot; 5.9% (1 in 17)" in html and "Value B &middot; +0.37u" in html
+    assert '<span class="lg">lean</span>' in html and '<span class="lg A">A</span>' in html
+    assert 'data-goto="t-TD-00-9-5"' in html and "Model <b>5.9%</b> vs book 4.3%" in html
+    res.parlays = []
+    assert "Not enough TD legs in different games at a fair price" in render(res)
+    assert "No DraftKings lines yet: parlays appear" in render(board_result(book_lines=0))

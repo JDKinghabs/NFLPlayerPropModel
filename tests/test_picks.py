@@ -129,3 +129,48 @@ def test_make_leaves_inputs_alone_and_needs_a_calibration():
     P.make(elite, {}, {}, CALIB)
     assert list(elite["WR"].columns) == cols
     assert P.make(elite, {}, {}, None) == ([], [])
+
+
+def tdc(pid, ev, game, grade=None, price=100, p=0.5, kind="td", trusted=True, edge=None):
+    return dict(kind=kind, pid=pid, name=pid.upper(), team="T" + pid, pos="RB", opp_txt="X", kick_txt="Sun 1p",
+                kickoff=KICK_UTC, week=5, game=game, price=price, p=p, implied=P.implied(price),
+                edge=p - P.implied(price) if edge is None else edge, ev=ev, grade=grade, trusted=trusted, inj="", updated=None,
+                book="DraftKings")
+
+
+def test_parlay_price_and_chance_multiply_across_legs():
+    x = P.td_parlays([tdc("a", 0.3, "g1"), tdc("b", 0.2, "g2")], legs=2)[0]
+    assert x["price"] == 300 and x["dec"] == pytest.approx(4.0) and x["p"] == pytest.approx(0.25)
+    assert x["implied"] == pytest.approx(0.25) and x["ev"] == pytest.approx(0.0) and {l["pid"] for l in x["legs"]} == {"a", "b"}
+    assert x["hit_grade"] == "A" and x["value_grade"] == "C"                         # 25% to hit; no value at a fair price
+    assert P.american(1.5) == -200 and P.american(P.decimal(-110)) == -110 and P.american(P.decimal(425)) == 425
+
+
+def test_three_parlays_from_likeliest_to_best_value():
+    cands = [tdc("fav1", 0.12, "g1", p=0.45, price=150), tdc("fav2", 0.10, "g2", p=0.44, price=150),
+             tdc("fav3", 0.07, "g3", p=0.43, price=150), tdc("val1", 0.9, "g4", p=0.25, price=500),
+             tdc("val2", 0.8, "g5", p=0.24, price=500), tdc("val3", 0.7, "g6", p=0.23, price=500),
+             tdc("mid", 0.4, "g7", p=0.35, price=200)]
+    ps = P.td_parlays(cands)
+    assert [x["type"] for x in ps] == ["Best chance", "Balanced", "Best value"] and [x["rank"] for x in ps] == [1, 2, 3]
+    by = {x["type"]: {l["pid"] for l in x["legs"]} for x in ps}
+    assert by["Best chance"] == {"fav1", "fav2", "fav3"} and by["Best value"] == {"val1", "val2", "val3"}
+    assert "mid" in by["Balanced"]
+    assert ps[0]["p"] > ps[1]["p"] > ps[2]["p"] and ps[2]["ev"] > ps[0]["ev"]
+    for a in ps:                                                                     # real alternatives: share at most 1 leg
+        for b in ps:
+            if a is not b:
+                assert len({l["pid"] for l in a["legs"]} & {l["pid"] for l in b["legs"]}) <= 1
+
+
+def test_parlay_legs_need_a_fair_price_the_guards_and_different_games():
+    cands = [tdc("a", 0.3, "g1"), tdc("same_game", 0.9, "g1"), tdc("b", 0.2, "g2"), tdc("c", 0.1, "g3"),
+             tdc("unguarded", 2.0, "g4", trusted=False), tdc("below_book", 0.5, "g5", edge=-0.02),
+             tdc("yards", 2.0, "g6", kind="yards")]
+    ps = P.td_parlays(cands)
+    used = {l["pid"] for x in ps for l in x["legs"]}
+    assert not used & {"unguarded", "below_book", "yards"}
+    for x in ps:
+        games = [next(c["game"] for c in cands if c["pid"] == l["pid"]) for l in x["legs"]]
+        assert len(games) == len(set(games)) == 3
+    assert P.td_parlays(cands[:2]) == [] and P.td_parlays([]) == []

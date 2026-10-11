@@ -130,6 +130,19 @@ input:focus,button:focus-visible,summary:focus-visible{outline:2px solid var(--i
 .flash{animation:flash 1.8s ease}@keyframes flash{0%,40%{box-shadow:0 0 0 2px var(--pos)}100%{box-shadow:0 0 0 0 transparent}}
 
 /* anytime TD rows */
+.parlays{margin:4px 0 22px}.parlays h3{font-size:15px;margin:0 0 2px}.parlays>p{margin:0 0 10px;color:var(--muted);font-size:12.5px}
+.plist{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.parlay{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.parlay .phd{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}.parlay .ptl{font-weight:750;color:var(--muted);font-size:12px;
+text-transform:uppercase;letter-spacing:.06em}.parlay .ppr{font-size:22px;font-weight:800;color:var(--pos);margin-left:auto}
+.parlay ol{margin:0 0 8px;padding-left:18px}.parlay li{margin:4px 0}.parlay li a{color:var(--text);font-weight:700;text-decoration:none}
+.parlay li a:hover{text-decoration:underline}.parlay .lsub{display:block;color:var(--muted);font-size:12px}
+.parlay .pos{color:var(--pos)}.parlay .neg{color:var(--neg)}
+.parlay .pgr{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}.parlay .pg{font-size:12px;font-weight:700;padding:3px 8px;border-radius:999px;
+border:1px solid var(--line);color:var(--muted)}.parlay .pg.A{color:var(--pos);border-color:var(--pos)}.parlay .pg.B{color:var(--text)}
+.parlay .lg{font-size:10.5px;font-weight:750;padding:1px 6px;border-radius:6px;margin-right:4px;color:var(--faint);border:1px solid var(--line)}
+.parlay .lg.A{background:var(--pos);color:#052e14;border-color:var(--pos)}.parlay .lg.B{color:var(--pos);border-color:var(--pos)}
+.parlay .pft{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:7px}.parlay .pft b{color:var(--text)}
 .tdwk{font-size:11px;font-weight:750;color:var(--faint);margin:12px 0 6px;text-transform:uppercase;letter-spacing:.07em}
 .tdrow{display:grid;grid-template-columns:2em 1fr auto;gap:4px 10px;align-items:center;background:var(--surface);border:1px solid var(--line);
 border-radius:10px;padding:8px 10px;margin:0 0 6px}
@@ -633,6 +646,41 @@ def _td_row(r, season, lines=None, picked=None) -> str:
             f'aria-label="Sportsbook odds for an anytime touchdown"></label><span class="tdedge pov"></span></div></article>')
 
 
+def _parlays(res) -> str:
+    """TD parlays (props/picks.py::td_parlays): best chance, balanced and best value, each graded on hit chance and on value."""
+    parlays, om = getattr(res, "parlays", None) or [], res.meta.get("odds") or {}
+    legs = C.PARLAY_LEGS
+    hc, vc = C.PARLAY_HIT_GRADE, C.PARLAY_VALUE_GRADE
+    head = (f'<h3>TD parlays</h3><p>Three {legs}-leg parlays from likeliest to best value. A leg needs the model at or above '
+            f'{BOOK}\'s price and the same guards as Top plays, but not the Top plays edge bar (legs that clear it carry their '
+            f'A/B). Every leg is from a different game (same-game TDs move together and {BOOK} prices those parlays differently); '
+            f'two parlays share at most {C.PARLAY_MAX_SHARED} leg. <b>Hit</b> grade: A at {hc[0]:.0%}+, B at {hc[1]:.0%}+. '
+            f'<b>Value</b> grade (EV per 1u): A at {vc[0]:+.2f}u+, B at {vc[1]:+.2f}u+. The price is the product of the legs\' '
+            f'prices; check it on your slip. Even the likeliest one usually loses.</p>')
+    if not parlays:
+        msg = (f"No {BOOK} lines yet: parlays appear once lines are pulled." if not om.get("book_lines") else
+               f"Not enough TD legs in different games at a fair price for a {legs}-leg parlay right now.")
+        return f'<section class="parlays" id="parlays">{head}<div class="empty">{msg}</div></section>'
+    cards = []
+    for x in parlays:
+        items = []
+        for leg in x["legs"]:
+            cid = _card_id("t", "TD", leg["pid"], leg["week"])
+            tag = f'<span class="lg {leg["grade"]}">{leg["grade"]}</span>' if leg.get("grade") else '<span class="lg">lean</span>'
+            items.append(f'<li><a href="#{cid}" data-goto="{cid}" data-tab="p4">{escape(leg["name"])}</a> '
+                         f'<span class="tm">{escape(leg["team"])}</span> {tag}{_inj_chip(leg.get("inj"))}'
+                         f'<span class="lsub">Yes {leg["price"]:+d} &middot; model {leg["p"]:.0%} vs book {leg["implied"]:.0%} &middot; '
+                         f'{escape(_opp(leg))} &middot; {escape(leg["kick_txt"])}</span></li>')
+        one_in = f"1 in {round(1 / x['p'])}" if x["p"] > 0 else ""
+        cards.append(f'<article class="parlay"><div class="phd"><span class="ptl">{escape(x["type"])}</span>'
+                     f'<span class="ppr">{x["price"]:+d}</span><span class="pbook">{escape(x["book"])}</span></div>'
+                     f'<div class="pgr"><span class="pg {x["hit_grade"]}">Hit {x["hit_grade"]} &middot; {x["p"]:.1%} ({one_in})</span>'
+                     f'<span class="pg {x["value_grade"]}">Value {x["value_grade"]} &middot; {x["ev"]:+.2f}u</span></div>'
+                     f'<ol>{"".join(items)}</ol><div class="pft">Model <b>{x["p"]:.1%}</b> vs book {x["implied"]:.1%} '
+                     f'&middot; EV <b class="{"pos" if x["ev"] > 0 else "neg"}">{x["ev"]:+.2f}u</b> per 1u</div></article>')
+    return f'<section class="parlays" id="parlays">{head}<div class="plist">{"".join(cards)}</div></section>'
+
+
 def _td_columns(td: dict, season: int, note: str = "", lines=None, picked=None) -> str:
     out = []
     for k in TD_GROUPS:
@@ -834,7 +882,7 @@ def render(res, xlsx_name: str | None = XLSX_NAME, fragment: bool = False) -> st
 
 <div class="panel" id="p4" hidden>
 <p class="lede">Chance each RB, WR and TE scores a rushing or receiving touchdown, ranked within each week, <b>if he plays</b> (books void the bet when a player is inactive). <b>Fair</b> is the American price at which the bet breaks even; the {BOOK} price and the edge show when lines have been pulled. Top {TD_SHOWN} per position up front; the Excel has everyone. QBs and fullbacks are not modelled.</p>
-{_chipnav("t", TD_GROUPS)}<div class="cols">{p4}</div></div>
+{_parlays(res)}{_chipnav("t", TD_GROUPS)}<div class="cols">{p4}</div></div>
 
 <div class="panel" id="p3" hidden>
 <p class="lede">Your bet log, kept on <b>this device only</b>. When you save a bet, the page freezes what the model knew right then: projection, matchup, injury status, the line, and when the data was built. Results come later from a separate file and only grade the bet, so they can never rewrite what the model said. Bets lock at kickoff: no adding, no deleting afterward. Stats usually post by Tuesday.</p>
