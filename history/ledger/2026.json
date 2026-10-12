@@ -34,9 +34,9 @@
   "source": "2026-10-11T13-25-30Z.json",
   "source_built": "2026-10-11T13:25:30Z",
   "source_hash": "22645c454bc7d9dc",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": 0,
+  "outcome": "L",
+  "units": -1.0,
   "logged_at": "2026-10-11T13:38:29Z"
  },
  {
@@ -74,9 +74,9 @@
   "source": "2026-10-11T13-25-30Z.json",
   "source_built": "2026-10-11T13:25:30Z",
   "source_hash": "22645c454bc7d9dc",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": 0,
+  "outcome": "L",
+  "units": -1.0,
   "logged_at": "2026-10-11T13:38:29Z"
  },
  {
@@ -113,9 +113,9 @@
   "source": "2026-10-11T13-25-30Z.json",
   "source_built": "2026-10-11T13:25:30Z",
   "source_hash": "22645c454bc7d9dc",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": 123,
+  "outcome": "L",
+  "units": -1.0,
   "logged_at": "2026-10-11T13:38:29Z"
  },
  {
@@ -151,9 +151,9 @@
   "source": "2026-10-11T13-25-30Z.json",
   "source_built": "2026-10-11T13:25:30Z",
   "source_hash": "22645c454bc7d9dc",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": 69,
+  "outcome": "W",
+  "units": 0.893,
   "logged_at": "2026-10-11T13:38:29Z"
  },
  {
@@ -189,9 +189,9 @@
   "source": "2026-10-11T13-25-30Z.json",
   "source_built": "2026-10-11T13:25:30Z",
   "source_hash": "22645c454bc7d9dc",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": 104,
+  "outcome": "L",
+  "units": -1.0,
   "logged_at": "2026-10-11T13:38:29Z"
  },
  {
@@ -229,9 +229,9 @@
   "source": "2026-10-11T13-25-30Z.json",
   "source_built": "2026-10-11T13:25:30Z",
   "source_hash": "22645c454bc7d9dc",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": 151,
+  "outcome": "L",
+  "units": -1.0,
   "logged_at": "2026-10-11T13:38:29Z"
  },
  {
@@ -267,9 +267,9 @@
   "source": "2026-10-11T13-25-30Z.json",
   "source_built": "2026-10-11T13:25:30Z",
   "source_hash": "22645c454bc7d9dc",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": 124,
+  "outcome": "L",
+  "units": -1.0,
   "logged_at": "2026-10-11T13:38:29Z"
  },
  {
@@ -306,9 +306,9 @@
   "source": "2026-10-11T13-25-30Z.json",
   "source_built": "2026-10-11T13:25:30Z",
   "source_hash": "22645c454bc7d9dc",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": 43,
+  "outcome": "W",
+  "units": 0.877,
   "logged_at": "2026-10-11T13:38:29Z"
  },
  {
@@ -346,9 +346,9 @@
   "source": "2026-10-11T13-25-30Z.json",
   "source_built": "2026-10-11T13:25:30Z",
   "source_hash": "22645c454bc7d9dc",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": 0,
+  "outcome": "L",
+  "units": -1.0,
   "logged_at": "2026-10-11T13:38:29Z"
  },
  {
@@ -387,9 +387,9 @@
   "source": "2026-10-11T13-25-30Z.json",
   "source_built": "2026-10-11T13:25:30Z",
   "source_hash": "22645c454bc7d9dc",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": 96,
+  "outcome": "W",
+  "units": 0.877,
   "logged_at": "2026-10-11T13:38:29Z"
  },
  {
@@ -466,9 +466,13 @@
   "source": "2026-10-11T14-12-54Z.json",
   "source_built": "2026-10-11T14:12:54Z",
   "source_hash": "4c2d754b3919154d",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": [
+   0,
+   0,
+   1
+  ],
+  "outcome": "L",
+  "units": -1.0,
   "logged_at": "2026-10-11T14:15:22Z"
  },
  {
@@ -545,9 +549,13 @@
   "source": "2026-10-11T14-12-54Z.json",
   "source_built": "2026-10-11T14:12:54Z",
   "source_hash": "4c2d754b3919154d",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": [
+   0,
+   0,
+   0
+  ],
+  "outcome": "L",
+  "units": -1.0,
   "logged_at": "2026-10-11T14:15:22Z"
  },
  {
@@ -624,9 +632,13 @@
   "source": "2026-10-11T14-12-54Z.json",
   "source_built": "2026-10-11T14:12:54Z",
   "source_hash": "4c2d754b3919154d",
-  "actual": null,
-  "outcome": null,
-  "units": null,
+  "actual": [
+   0,
+   0,
+   0
+  ],
+  "outcome": "L",
+  "units": -1.0,
   "logged_at": "2026-10-11T14:15:22Z"
  }
 ]
